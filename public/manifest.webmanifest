@@ -3,16 +3,18 @@
   "short_name": "نقطه صفر",
   "description": "Zero-Friction Focus OS with Brain Dump & Rule of 3 Sticky Note",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#090d16",
   "theme_color": "#090d16",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
   "dir": "rtl",
   "lang": "fa-IR",
+  "categories": ["productivity", "utilities"],
   "icons": [
     {
       "src": "/icon.svg",
-      "sizes": "any",
+      "sizes": "192x192 512x512 any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
