@@ -874,46 +874,71 @@ export default function App() {
     <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-xl'} shrink-0`}>
       <form
         onSubmit={handleAddDump}
-        className="bg-slate-900/95 border border-slate-800/90 focus-within:border-amber-400/60 rounded-2xl p-1.5 shadow-xl flex items-center gap-2 transition-all"
+        className="bg-slate-900/95 border border-slate-800/90 focus-within:border-amber-400/60 rounded-2xl p-2.5 shadow-xl flex flex-col gap-2 transition-all w-full"
       >
-        <input
-          ref={isMobile ? mobileDumpInputRef : dumpInputRef}
-          type="text"
-          value={dumpInput}
-          onChange={(e) => setDumpInput(e.target.value)}
-          placeholder={isMobile ? 'تخلیه فوری ذهن در ورودی لال...' : 'تخلیه فوری ذهن در ورودی لال... (Ctrl + K)'}
-          className="flex-1 bg-transparent text-slate-100 placeholder-slate-500 text-sm px-3 py-2.5 focus:outline-none"
-        />
-
-        {/* Quick Mode Tag Selector */}
-        <div className="flex items-center gap-1 px-1">
-          {['deep', 'sync', 'quick'].map((m) => (
+        {/* Row 1: Full-width text input */}
+        <div className="flex items-center gap-2 w-full">
+          <input
+            ref={isMobile ? mobileDumpInputRef : dumpInputRef}
+            type="text"
+            value={dumpInput}
+            onChange={(e) => setDumpInput(e.target.value)}
+            placeholder={isMobile ? 'تخلیه فوری ذهن در ورودی لال...' : 'تخلیه فوری ذهن در ورودی لال... (Ctrl + K)'}
+            className="min-w-0 flex-1 bg-transparent text-slate-100 placeholder-slate-500 text-sm px-1 py-1 focus:outline-none"
+          />
+          {dumpInput.trim() && (
             <button
-              key={m}
               type="button"
               onClick={() => {
-                setQuickMode(quickMode === m ? 'untagged' : m);
+                setDumpInput('');
                 triggerHaptic(8);
               }}
-              title={MODE_META[m].label}
-              className={`min-w-[28px] min-h-[28px] rounded-lg flex items-center justify-center border transition-all active:scale-90 ${
-                quickMode === m
-                  ? MODE_META[m].badge + ' scale-105 shadow-sm'
-                  : 'border-transparent hover:bg-slate-800 opacity-60 hover:opacity-100'
-              }`}
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-300 shrink-0"
+              title="پاک کردن"
             >
-              <span className={`w-2.5 h-2.5 rounded-full ${MODE_META[m].dot}`} />
+              <X className="w-4 h-4" />
             </button>
-          ))}
+          )}
         </div>
 
-        <button
-          type="submit"
-          className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs px-3.5 py-2.5 rounded-xl transition-all shrink-0 flex items-center gap-1 active:scale-95 shadow-md shadow-amber-400/10 min-h-touch"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span className="hidden sm:inline">ثبت</span>
-        </button>
+        {/* Row 2: Task Type pills (عمیق, تعاملی, سرپایی) + Submit button */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/70">
+          <div className="flex items-center gap-1.5 overflow-x-auto clean-scroll py-0.5">
+            {[
+              { key: 'deep', label: 'عمیق', dot: 'bg-rose-500', active: 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm' },
+              { key: 'sync', label: 'تعاملی', dot: 'bg-amber-400', active: 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm' },
+              { key: 'quick', label: 'سرپایی', dot: 'bg-emerald-400', active: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm' },
+            ].map((m) => {
+              const isSelected = quickMode === m.key;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => {
+                    setQuickMode(isSelected ? 'untagged' : m.key);
+                    triggerHaptic(8);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all active:scale-95 shrink-0 ${
+                    isSelected
+                      ? m.active
+                      : 'bg-slate-950/60 text-slate-400 border-slate-800/80 hover:text-slate-200'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${m.dot}`} />
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="submit"
+            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1 active:scale-95 shadow-md shadow-amber-400/10 min-h-[34px]"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>ثبت</span>
+          </button>
+        </div>
       </form>
     </div>
   );
@@ -942,7 +967,7 @@ export default function App() {
 
         {/* Slot 1: Deep Work */}
         <div className="mb-4">
-          <div className="flex items-center justify-between gap-1 mb-2">
+          <div className="flex items-center justify-between gap-1 mb-2 flex-wrap sm:flex-nowrap">
             <span className="text-[11px] font-extrabold text-rose-950 flex items-center gap-1.5 shrink-0">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse" />
               ۱ کار عمیق (سازنده)
@@ -1004,7 +1029,7 @@ export default function App() {
               </button>
               <span
                 onClick={() => toggleStickyDone('deep')}
-                className={`flex-1 text-xs sm:text-sm font-bold cursor-pointer leading-snug py-0.5 select-text ${
+                className={`min-w-0 flex-1 text-xs sm:text-sm font-bold cursor-pointer leading-snug py-0.5 select-text break-words ${
                   sticky.deep.done ? 'line-through text-slate-700' : 'text-slate-900'
                 }`}
               >
@@ -1013,13 +1038,13 @@ export default function App() {
               <button
                 onClick={() => returnSlotToDump('deep')}
                 title="برگشت به ورودی"
-                className="p-1.5 rounded-lg hover:bg-slate-900/10 text-slate-600 hover:text-slate-900 transition-colors active:scale-90"
+                className="p-1.5 rounded-lg hover:bg-slate-900/10 text-slate-600 hover:text-slate-900 transition-colors active:scale-90 shrink-0"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
               </button>
             </div>
           ) : (
-            <form onSubmit={(e) => handleManualSlotAdd('deep', e)} className="flex gap-1.5">
+            <form onSubmit={(e) => handleManualSlotAdd('deep', e)} className="flex items-center gap-1.5 w-full">
               <input
                 type="text"
                 value={manualSlotInput.deep}
@@ -1027,7 +1052,7 @@ export default function App() {
                   setManualSlotInput({ ...manualSlotInput, deep: e.target.value })
                 }
                 placeholder="مهم‌ترین تسک عمیق امروز..."
-                className="flex-1 bg-white/50 border border-dashed border-slate-900/25 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 placeholder-slate-600 focus:outline-none focus:bg-white/80"
+                className="min-w-0 flex-1 bg-white/50 border border-dashed border-slate-900/25 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 placeholder-slate-600 focus:outline-none focus:bg-white/80"
               />
               <button
                 type="submit"
@@ -1069,7 +1094,7 @@ export default function App() {
                   </button>
                   <span
                     onClick={() => toggleStickyDone(slotKey)}
-                    className={`flex-1 text-xs sm:text-sm font-bold cursor-pointer leading-snug py-0.5 select-text ${
+                    className={`min-w-0 flex-1 text-xs sm:text-sm font-bold cursor-pointer leading-snug py-0.5 select-text break-words ${
                       item.done ? 'line-through text-slate-700' : 'text-slate-900'
                     }`}
                   >
@@ -1078,7 +1103,7 @@ export default function App() {
                   <button
                     onClick={() => returnSlotToDump(slotKey)}
                     title="برگشت به ورودی"
-                    className="p-1.5 rounded-lg hover:bg-slate-900/10 text-slate-600 hover:text-slate-900 transition-colors active:scale-90"
+                    className="p-1.5 rounded-lg hover:bg-slate-900/10 text-slate-600 hover:text-slate-900 transition-colors active:scale-90 shrink-0"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
                   </button>
@@ -1087,7 +1112,7 @@ export default function App() {
                 <form
                   key={slotKey}
                   onSubmit={(e) => handleManualSlotAdd(slotKey, e)}
-                  className="flex gap-1.5"
+                  className="flex items-center gap-1.5 w-full"
                 >
                   <input
                     type="text"
@@ -1096,7 +1121,7 @@ export default function App() {
                       setManualSlotInput({ ...manualSlotInput, [slotKey]: e.target.value })
                     }
                     placeholder={`کار تعاملی / مدیریتی #${index + 1}...`}
-                    className="flex-1 bg-white/45 border border-dashed border-slate-900/25 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 placeholder-slate-600 focus:outline-none focus:bg-white/80"
+                    className="min-w-0 flex-1 bg-white/45 border border-dashed border-slate-900/25 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 placeholder-slate-600 focus:outline-none focus:bg-white/80"
                   />
                   <button
                     type="submit"
@@ -1750,13 +1775,26 @@ export default function App() {
                       </div>
 
                       {isEditing ? (
-                        <div className="flex-1 flex gap-1.5">
+                        <div className="flex-1 flex items-center gap-1.5 min-w-0">
                           <input
                             type="text"
                             value={editingThemeText}
                             onChange={(e) => setEditingThemeText(e.target.value)}
                             autoFocus
-                            className="flex-1 bg-slate-900 border border-amber-400/50 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                setThemes(
+                                  themes.map((t) =>
+                                    t.id === item.id
+                                      ? { ...t, theme: editingThemeText.trim() || t.theme }
+                                      : t
+                                  )
+                                );
+                                setEditingDayId(null);
+                                triggerHaptic(10);
+                              }
+                            }}
+                            className="min-w-0 flex-1 bg-slate-900 border border-amber-400/50 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none"
                           />
                           <button
                             onClick={() => {
@@ -1770,9 +1808,16 @@ export default function App() {
                               setEditingDayId(null);
                               triggerHaptic(10);
                             }}
-                            className="px-2.5 py-1 bg-amber-400 text-slate-950 rounded-lg text-xs font-bold"
+                            className="px-3 py-1 bg-amber-400 text-slate-950 rounded-lg text-xs font-bold shrink-0 active:scale-95"
                           >
                             ثبت
+                          </button>
+                          <button
+                            onClick={() => setEditingDayId(null)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-slate-200 shrink-0"
+                            title="انصراف"
+                          >
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ) : (
@@ -1781,7 +1826,7 @@ export default function App() {
                             setEditingDayId(item.id);
                             setEditingThemeText(item.theme);
                           }}
-                          className="flex-1 flex items-center justify-between cursor-pointer"
+                          className="flex-1 flex items-center justify-between cursor-pointer min-w-0"
                         >
                           <span className="text-xs text-slate-200 font-medium truncate">
                             {item.theme}
@@ -1815,25 +1860,40 @@ export default function App() {
                 {reminders.map((r) => (
                   <div
                     key={r.id}
-                    className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between"
+                    className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-2"
                   >
-                    <div>
-                      <div className="text-xs font-bold text-slate-200">{r.title}</div>
-                      <div className="text-[11px] font-mono text-amber-400 mt-0.5">{r.time}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-200 truncate">{r.title}</div>
+                      <div className="text-[11px] font-mono text-amber-400 mt-0.5 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        <span>{r.time}</span>
+                      </div>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={r.active}
-                      onChange={() => {
-                        setReminders(
-                          reminders.map((item) =>
-                            item.id === r.id ? { ...item, active: !item.active } : item
-                          )
-                        );
-                        triggerHaptic(10);
-                      }}
-                      className="w-5 h-5 accent-amber-400 rounded cursor-pointer"
-                    />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={r.active}
+                        onChange={() => {
+                          setReminders(
+                            reminders.map((item) =>
+                              item.id === r.id ? { ...item, active: !item.active } : item
+                            )
+                          );
+                          triggerHaptic(10);
+                        }}
+                        className="w-5 h-5 accent-amber-400 rounded cursor-pointer"
+                      />
+                      <button
+                        onClick={() => {
+                          setReminders(reminders.filter((item) => item.id !== r.id));
+                          triggerHaptic(12);
+                        }}
+                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 active:scale-90"
+                        title="حذف یادآور"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1855,27 +1915,41 @@ export default function App() {
                   sfx.playPop();
                   triggerHaptic(15);
                 }}
-                className="flex gap-2"
+                className="space-y-2 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80"
               >
+                <span className="text-[11px] font-bold text-slate-400 block mb-1">
+                  افزودن یادآور جدید
+                </span>
+                {/* Row 1: Title input full-width */}
                 <input
                   type="text"
                   value={newReminderTitle}
                   onChange={(e) => setNewReminderTitle(e.target.value)}
-                  placeholder="عنوان یادآور..."
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                  placeholder="عنوان یادآور (مثلاً: شروع بلوک عمیق)..."
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/50"
                 />
-                <input
-                  type="time"
-                  value={newReminderTime}
-                  onChange={(e) => setNewReminderTime(e.target.value)}
-                  className="bg-slate-950 border border-slate-800 rounded-xl px-2 py-2 text-xs text-amber-300 font-mono focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="px-3 py-2 bg-amber-400 text-slate-950 font-bold text-xs rounded-xl active:scale-95"
-                >
-                  افزودن
-                </button>
+
+                {/* Row 2: Time picker + Submit button */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 min-w-0">
+                    <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="text-[11px] text-slate-400 shrink-0">ساعت:</span>
+                    <input
+                      type="time"
+                      value={newReminderTime}
+                      onChange={(e) => setNewReminderTime(e.target.value)}
+                      className="min-w-0 flex-1 bg-transparent text-xs text-amber-300 font-mono focus:outline-none"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl active:scale-95 shrink-0 flex items-center gap-1 shadow-sm"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>افزودن</span>
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -2365,11 +2439,11 @@ export default function App() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 pt-2">
+              <div className="flex items-center gap-2 pt-2 flex-col sm:flex-row">
                 <button
                   onClick={() => pushToSupabase(false)}
                   disabled={!isCloudConfigured}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+                  className="w-full sm:flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-slate-950 font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>ارسال به ابر (Push)</span>
@@ -2377,7 +2451,7 @@ export default function App() {
                 <button
                   onClick={() => pullFromSupabase(false)}
                   disabled={!isCloudConfigured}
-                  className="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+                  className="w-full sm:flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 disabled:opacity-40 text-slate-200 font-bold text-xs transition-all flex items-center justify-center gap-1.5 active:scale-95"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>دریافت از ابر (Pull)</span>
@@ -2478,7 +2552,7 @@ export default function App() {
                     </span>
 
                     {isEditing ? (
-                      <div className="flex-1 flex gap-1.5">
+                      <div className="flex-1 flex items-center gap-1.5 min-w-0">
                         <input
                           type="text"
                           value={editingThemeText}
@@ -2496,7 +2570,7 @@ export default function App() {
                               setEditingDayId(null);
                             }
                           }}
-                          className="flex-1 bg-slate-900 border border-amber-400/50 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none"
+                          className="min-w-0 flex-1 bg-slate-900 border border-amber-400/50 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none"
                         />
                         <button
                           onClick={() => {
@@ -2509,9 +2583,16 @@ export default function App() {
                             );
                             setEditingDayId(null);
                           }}
-                          className="px-2.5 py-1 bg-amber-400 text-slate-950 rounded-lg text-xs font-bold"
+                          className="px-3 py-1 bg-amber-400 text-slate-950 rounded-lg text-xs font-bold shrink-0 active:scale-95"
                         >
                           ثبت
+                        </button>
+                        <button
+                          onClick={() => setEditingDayId(null)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-slate-200 shrink-0"
+                          title="انصراف"
+                        >
+                          <X className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ) : (
@@ -2520,10 +2601,10 @@ export default function App() {
                           setEditingDayId(item.id);
                           setEditingThemeText(item.theme);
                         }}
-                        className="flex-1 flex items-center justify-between cursor-pointer group"
+                        className="flex-1 flex items-center justify-between cursor-pointer group min-w-0"
                       >
-                        <span className="text-xs text-slate-200 font-medium">{item.theme}</span>
-                        <Edit3 className="w-3.5 h-3.5 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <span className="text-xs text-slate-200 font-medium truncate">{item.theme}</span>
+                        <Edit3 className="w-3.5 h-3.5 text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 ml-1" />
                       </div>
                     )}
                   </div>
@@ -2564,24 +2645,39 @@ export default function App() {
               {reminders.map((r) => (
                 <div
                   key={r.id}
-                  className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between"
+                  className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-2"
                 >
-                  <div>
-                    <div className="text-xs font-bold text-slate-200">{r.title}</div>
-                    <div className="text-[11px] font-mono text-amber-400 mt-0.5">{r.time}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-200 truncate">{r.title}</div>
+                    <div className="text-[11px] font-mono text-amber-400 mt-0.5 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{r.time}</span>
+                    </div>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={r.active}
-                    onChange={() =>
-                      setReminders(
-                        reminders.map((item) =>
-                          item.id === r.id ? { ...item, active: !item.active } : item
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={r.active}
+                      onChange={() =>
+                        setReminders(
+                          reminders.map((item) =>
+                            item.id === r.id ? { ...item, active: !item.active } : item
+                          )
                         )
-                      )
-                    }
-                    className="w-4 h-4 accent-amber-400 rounded cursor-pointer"
-                  />
+                      }
+                      className="w-4 h-4 accent-amber-400 rounded cursor-pointer"
+                    />
+                    <button
+                      onClick={() => {
+                        setReminders(reminders.filter((item) => item.id !== r.id));
+                        triggerHaptic(12);
+                      }}
+                      className="p-1 rounded-lg text-slate-500 hover:text-rose-400 active:scale-90"
+                      title="حذف یادآور"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -2602,27 +2698,37 @@ export default function App() {
                 setNewReminderTitle('');
                 sfx.playPop();
               }}
-              className="flex gap-2"
+              className="space-y-2.5 bg-slate-950/60 p-3 rounded-2xl border border-slate-800/80"
             >
+              <span className="text-[11px] font-bold text-slate-400 block">
+                افزودن یادآور جدید
+              </span>
               <input
                 type="text"
                 value={newReminderTitle}
                 onChange={(e) => setNewReminderTitle(e.target.value)}
                 placeholder="عنوان یادآور..."
-                className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400/50"
               />
-              <input
-                type="time"
-                value={newReminderTime}
-                onChange={(e) => setNewReminderTime(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-amber-300 font-mono focus:outline-none"
-              />
-              <button
-                type="submit"
-                className="px-3 py-2 bg-amber-400 text-slate-950 font-bold text-xs rounded-xl"
-              >
-                افزودن
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 flex items-center gap-1.5 bg-slate-900 border border-slate-800 rounded-xl px-3 py-1.5 min-w-0">
+                  <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  <span className="text-[11px] text-slate-400 shrink-0">ساعت:</span>
+                  <input
+                    type="time"
+                    value={newReminderTime}
+                    onChange={(e) => setNewReminderTime(e.target.value)}
+                    className="min-w-0 flex-1 bg-transparent text-xs text-amber-300 font-mono focus:outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs rounded-xl active:scale-95 shrink-0 flex items-center gap-1 shadow-sm"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>افزودن</span>
+                </button>
+              </div>
             </form>
           </div>
         </div>
