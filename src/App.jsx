@@ -34,7 +34,14 @@ import {
   AlertCircle,
   Share2,
   Info,
-  CheckCircle
+  CheckCircle,
+  Coffee,
+  FileText,
+  CheckCheck,
+  History,
+  Archive,
+  SkipForward,
+  Timer
 } from 'lucide-react';
 
 // --- Web Audio API Sound Synthesizer ---
@@ -154,6 +161,28 @@ class SoundEffects {
       osc.stop(now + 0.46);
     } catch (e) {}
   }
+
+  playChime() {
+    if (!this.enabled) return;
+    try {
+      this.init();
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime;
+      const notes = [587.33, 880, 1174.66];
+      notes.forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+        gain.gain.setValueAtTime(0.15, now + idx * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.4);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.1);
+        osc.stop(now + idx * 0.1 + 0.41);
+      });
+    } catch (e) {}
+  }
 }
 
 const sfx = new SoundEffects();
@@ -166,6 +195,38 @@ const INITIAL_THEMES = [
   { id: 'wed', dayName: 'چهارشنبه', jsDay: 3, theme: 'بستن تسک‌های باز', color: 'purple' },
   { id: 'thu', dayName: 'پنجشنبه', jsDay: 4, theme: 'مرور هفتگی • برنامه‌ریزی', color: 'cyan' },
   { id: 'fri', dayName: 'جمعه', jsDay: 5, theme: 'ریکاوری ذهن', color: 'slate' },
+];
+
+const INITIAL_COMPLETED = [
+  {
+    id: 'c-1',
+    text: 'کد ریویو و مرج کردن برنچ اصلی پروژه دوم',
+    mode: 'sync',
+    completedAt: 'امروز، ۱۰:۱۵',
+    source: 'sticky',
+  },
+  {
+    id: 'c-2',
+    text: 'تایید دسترسی محیط استیجینگ برای دولوپر جدید',
+    mode: 'quick',
+    completedAt: 'امروز، ۰۹:۴۰',
+    source: 'quick',
+  },
+];
+
+const INITIAL_CRUMPLED = [
+  {
+    id: 'paper-demo-1',
+    date: 'دیروز، ساعت ۱۸:۳۰',
+    timestamp: Date.now() - 86400000,
+    completedCount: 2,
+    totalCount: 3,
+    tasks: [
+      { id: 'dp-1', text: 'طراحی ساختار ماژول کش محلی', mode: 'deep', done: true },
+      { id: 'dp-2', text: 'بررسی فیدبک‌های اسپرینت قبلی', mode: 'sync', done: true },
+      { id: 'dp-3', text: 'مستندسازی روال استقرار سرور', mode: 'sync', done: false },
+    ],
+  },
 ];
 
 const INITIAL_DUMPS = [
@@ -319,10 +380,32 @@ export default function App() {
 
   // Drawers & Modals (Desktop & Shared)
   const [inboxOpen, setInboxOpen] = useState(true);
+  const [sideDrawerTab, setSideDrawerTab] = useState('inbox'); // 'inbox' | 'archive'
+  const [archiveSubTab, setArchiveSubTab] = useState('completed'); // 'completed' | 'crumpled'
+  const [archiveFilterMode, setArchiveFilterMode] = useState('all');
   const [themeModalOpen, setThemeModalOpen] = useState(false);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [cloudModalOpen, setCloudModalOpen] = useState(false);
   const [sqlCopied, setSqlCopied] = useState(false);
+
+  // Archive & History States (Completed Tasks & Crumpled Papers)
+  const [completedTasks, setCompletedTasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('zp_completed_tasks_v2');
+      return saved ? JSON.parse(saved) : INITIAL_COMPLETED;
+    } catch {
+      return INITIAL_COMPLETED;
+    }
+  });
+
+  const [crumpledPapers, setCrumpledPapers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('zp_crumpled_papers_v2');
+      return saved ? JSON.parse(saved) : INITIAL_CRUMPLED;
+    } catch {
+      return INITIAL_CRUMPLED;
+    }
+  });
 
   // Sticky Note States
   const [isCrumpling, setIsCrumpling] = useState(false);
@@ -331,10 +414,19 @@ export default function App() {
   });
   const [manualSlotInput, setManualSlotInput] = useState({ deep: '', sync1: '', sync2: '' });
 
-  // Focus Timer
-  const [timerSeconds, setTimerSeconds] = useState(90 * 60);
+  // Pomodoro Focus Timer
+  const [pomoMode, setPomoMode] = useState('focus'); // 'focus' | 'short_break' | 'long_break'
+  const [pomoDurations, setPomoDurations] = useState({
+    focus: 25,
+    short_break: 5,
+    long_break: 15,
+  });
+  const [timerSeconds, setTimerSeconds] = useState(25 * 60);
   const [timerRunning, setTimerRunning] = useState(false);
-  const [selectedPreset, setSelectedPreset] = useState(90);
+  const [pomoCycle, setPomoCycle] = useState(1); // 1 to 4
+  const [completedPomodoros, setCompletedPomodoros] = useState(() => {
+    return Number(localStorage.getItem('zp_completed_pomos') || 0);
+  });
 
   // Theme editing
   const [editingDayId, setEditingDayId] = useState(null);
@@ -425,12 +517,15 @@ export default function App() {
     localStorage.setItem('zp_sticky_v2', JSON.stringify(sticky));
     localStorage.setItem('zp_themes_v2', JSON.stringify(themes));
     localStorage.setItem('zp_crumple_count', String(crumpleCount));
+    localStorage.setItem('zp_completed_tasks_v2', JSON.stringify(completedTasks));
+    localStorage.setItem('zp_crumpled_papers_v2', JSON.stringify(crumpledPapers));
+    localStorage.setItem('zp_completed_pomos', String(completedPomodoros));
     if (!isRemoteApplyingRef.current) {
       const nowIso = new Date().toISOString();
       setUpdatedAt(nowIso);
       localStorage.setItem('zp_updated_at', nowIso);
     }
-  }, [dumps, sticky, themes, crumpleCount]);
+  }, [dumps, sticky, themes, crumpleCount, completedTasks, crumpledPapers, completedPomodoros]);
 
   useEffect(() => {
     localStorage.setItem('zp_cloud_config', JSON.stringify(cloudConfig));
@@ -461,6 +556,9 @@ export default function App() {
           sticky,
           themes,
           crumpleCount,
+          completedTasks,
+          crumpledPapers,
+          completedPomodoros,
           reminders,
           clientUpdatedAt: updatedAt,
         };
@@ -499,7 +597,7 @@ export default function App() {
         if (!silent) showToast('خطای سینک', 'اتصال برقرار نشد. از اجرای کد SQL مطمئن شوید.');
       }
     },
-    [isCloudConfigured, cloudConfig, dumps, sticky, themes, crumpleCount, reminders, updatedAt, showToast]
+    [isCloudConfigured, cloudConfig, dumps, sticky, themes, crumpleCount, completedTasks, crumpledPapers, completedPomodoros, reminders, updatedAt, showToast]
   );
 
   const pullFromSupabase = useCallback(
@@ -539,6 +637,9 @@ export default function App() {
           if (remote.sticky) setSticky(remote.sticky);
           if (Array.isArray(remote.themes)) setThemes(remote.themes);
           if (typeof remote.crumpleCount === 'number') setCrumpleCount(remote.crumpleCount);
+          if (Array.isArray(remote.completedTasks)) setCompletedTasks(remote.completedTasks);
+          if (Array.isArray(remote.crumpledPapers)) setCrumpledPapers(remote.crumpledPapers);
+          if (typeof remote.completedPomodoros === 'number') setCompletedPomodoros(remote.completedPomodoros);
           if (Array.isArray(remote.reminders)) setReminders(remote.reminders);
           setTimeout(() => {
             isRemoteApplyingRef.current = false;
@@ -576,12 +677,22 @@ export default function App() {
       pushToSupabase(true);
     }, 1500);
     return () => clearTimeout(timer);
-  }, [dumps, sticky, themes, crumpleCount, isCloudConfigured, cloudConfig.autoSync, pushToSupabase]);
+  }, [dumps, sticky, themes, crumpleCount, completedTasks, crumpledPapers, completedPomodoros, isCloudConfigured, cloudConfig.autoSync, pushToSupabase]);
 
   // --- Backup JSON Export / Import ---
   const handleExportJSON = () => {
     const dataStr = JSON.stringify(
-      { dumps, sticky, themes, crumpleCount, reminders, exportedAt: new Date().toISOString() },
+      {
+        dumps,
+        sticky,
+        themes,
+        crumpleCount,
+        completedTasks,
+        crumpledPapers,
+        completedPomodoros,
+        reminders,
+        exportedAt: new Date().toISOString()
+      },
       null,
       2
     );
@@ -607,6 +718,9 @@ export default function App() {
         if (parsed.sticky) setSticky(parsed.sticky);
         if (Array.isArray(parsed.themes)) setThemes(parsed.themes);
         if (typeof parsed.crumpleCount === 'number') setCrumpleCount(parsed.crumpleCount);
+        if (Array.isArray(parsed.completedTasks)) setCompletedTasks(parsed.completedTasks);
+        if (Array.isArray(parsed.crumpledPapers)) setCrumpledPapers(parsed.crumpledPapers);
+        if (typeof parsed.completedPomodoros === 'number') setCompletedPomodoros(parsed.completedPomodoros);
         triggerHaptic([15, 30]);
         showToast('بازیابی موفق', 'اطلاعات فایل بکاپ با موفقیت جایگزین شد.');
       } catch {
@@ -629,7 +743,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // --- Timer Countdown ---
+  // --- Pomodoro Countdown Timer & Phase Switcher ---
   useEffect(() => {
     if (!timerRunning) return;
     const interval = setInterval(() => {
@@ -637,15 +751,41 @@ export default function App() {
         if (prev <= 1) {
           setTimerRunning(false);
           sfx.playBell();
-          triggerHaptic([40, 60, 40, 60]);
-          triggerAlert('پایان بلوک تمرکز عمیق!', 'زمان استراحت کوتاه و تنفس است.');
-          return 0;
+          triggerHaptic([40, 80, 40, 80]);
+
+          if (pomoMode === 'focus') {
+            setCompletedPomodoros((c) => c + 1);
+            if (pomoCycle % 4 === 0) {
+              setPomoMode('long_break');
+              triggerAlert('پایان ۴ دوره تمرکز! 🌴', 'زمان ۱۵ دقیقه استراحت طولانی و ریکاوری کامل ذهن است.');
+              return pomoDurations.long_break * 60;
+            } else {
+              setPomoMode('short_break');
+              triggerAlert('پایان دوره پومودرو! ☕', 'زمان ۵ دقیقه استراحت کوتاه، کشش عضلات و نوشیدن آب است.');
+              return pomoDurations.short_break * 60;
+            }
+          } else {
+            setPomoMode('focus');
+            setPomoCycle((c) => (c >= 4 ? 1 : c + 1));
+            triggerAlert('پایان زمان استراحت! 🍅', 'ذهن شما ریکاوری شد. آماده برای بلوک تمرکز بعدی باشید.');
+            return pomoDurations.focus * 60;
+          }
         }
         return prev - 1;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, [timerRunning]);
+  }, [timerRunning, pomoMode, pomoCycle, pomoDurations]);
+
+  // --- Dynamic Document Title for Active Pomodoro ---
+  useEffect(() => {
+    if (timerRunning) {
+      const modeEmoji = pomoMode === 'focus' ? '🍅' : pomoMode === 'short_break' ? '☕' : '🌴';
+      document.title = `${modeEmoji} (${formatTime(timerSeconds)}) نقطه صفر`;
+    } else {
+      document.title = 'نقطه صفر | Focus OS';
+    }
+  }, [timerRunning, timerSeconds, pomoMode]);
 
   // --- Minute Watcher for Reminders ---
   useEffect(() => {
@@ -725,10 +865,21 @@ export default function App() {
   };
 
   const handleCompleteQuickDump = (id) => {
+    const item = dumps.find((d) => d.id === id);
+    if (!item) return;
     sfx.playSuccess();
     triggerHaptic([15, 25]);
-    setDumps(dumps.filter((item) => item.id !== id));
-    showToast('انجام شد', 'کار سرپایی بسته شد.');
+    const completedItem = {
+      id: 'done-' + Date.now(),
+      originalId: item.id,
+      text: item.text,
+      mode: item.mode || 'quick',
+      completedAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+      source: 'quick',
+    };
+    setCompletedTasks((prev) => [completedItem, ...prev]);
+    setDumps(dumps.filter((d) => d.id !== id));
+    showToast('انجام شد', 'کار سرپایی انجام شد و به بایگانی اضافه شد.');
   };
 
   // --- Promote to Sticky Note ---
@@ -786,9 +937,20 @@ export default function App() {
     if (nextDone) {
       sfx.playSuccess();
       triggerHaptic([15, 25]);
+      const completedItem = {
+        id: 'done-' + Date.now(),
+        originalId: task.id,
+        text: task.text,
+        mode: slotKey === 'deep' ? 'deep' : 'sync',
+        completedAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
+        source: 'sticky',
+      };
+      setCompletedTasks((prev) => [completedItem, ...prev.filter((t) => t.originalId !== task.id)]);
+      showToast('انجام شد! 🎉', 'تسک در بخش کارهای انجام‌شده ثبت شد.');
     } else {
       sfx.playPop();
       triggerHaptic(10);
+      setCompletedTasks((prev) => prev.filter((t) => t.originalId !== task.id));
     }
 
     setSticky({
@@ -825,27 +987,163 @@ export default function App() {
 
     setTimeout(() => {
       const unfinished = [];
+      const paperTasks = [];
+
       ['deep', 'sync1', 'sync2'].forEach((key) => {
         const item = sticky[key];
-        if (item && !item.done) {
-          unfinished.push({
+        if (item) {
+          paperTasks.push({
             id: item.id,
             text: item.text,
             mode: key === 'deep' ? 'deep' : 'sync',
-            createdAt: 'از استیکی‌نوت قبلی',
+            done: Boolean(item.done),
           });
+          if (!item.done) {
+            unfinished.push({
+              id: item.id,
+              text: item.text,
+              mode: key === 'deep' ? 'deep' : 'sync',
+              createdAt: 'از استیکی‌نوت قبلی',
+            });
+          }
         }
       });
+
+      const newCrumpledPaper = {
+        id: 'paper-' + Date.now(),
+        date: new Date().toLocaleDateString('fa-IR', {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+        timestamp: Date.now(),
+        tasks: paperTasks,
+        completedCount: paperTasks.filter((t) => t.done).length,
+        totalCount: paperTasks.length,
+      };
+
+      setCrumpledPapers((prev) => [newCrumpledPaper, ...prev]);
+      setCrumpleCount((c) => c + 1);
 
       if (unfinished.length > 0) {
         setDumps((prev) => [...unfinished, ...prev]);
       }
 
       setSticky({ deep: null, sync1: null, sync2: null });
-      setCrumpleCount((c) => c + 1);
       setIsCrumpling(false);
-      showToast('کاغذ مچاله شد!', 'کارهای ناتمام بدون برچسب عقب‌افتادگی به ورودی برگشتند.');
+      showToast('کاغذ مچاله شد!', 'کارهای ناتمام به ورودی برگشتند و کاغذ در بایگانی مچاله‌ها ثبت شد.');
     }, 620);
+  };
+
+  // --- Pomodoro Control Handlers ---
+  const handleToggleTimer = () => {
+    sfx.playPop();
+    triggerHaptic(12);
+    setTimerRunning(!timerRunning);
+  };
+
+  const handleResetTimer = () => {
+    sfx.playPop();
+    triggerHaptic(10);
+    setTimerRunning(false);
+    setTimerSeconds(pomoDurations[pomoMode] * 60);
+  };
+
+  const handleSkipPomoPhase = () => {
+    sfx.playPop();
+    triggerHaptic([15, 20]);
+    setTimerRunning(false);
+    if (pomoMode === 'focus') {
+      if (pomoCycle % 4 === 0) {
+        setPomoMode('long_break');
+        setTimerSeconds(pomoDurations.long_break * 60);
+        showToast('انتقال به استراحت طولانی', '۱۵ دقیقه استراحت شروع شد.');
+      } else {
+        setPomoMode('short_break');
+        setTimerSeconds(pomoDurations.short_break * 60);
+        showToast('انتقال به استراحت کوتاه', '۵ دقیقه استراحت شروع شد.');
+      }
+    } else {
+      setPomoMode('focus');
+      setPomoCycle((c) => (c >= 4 ? 1 : c + 1));
+      setTimerSeconds(pomoDurations.focus * 60);
+      showToast('انتقال به تمرکز عمیق', 'بلوک تمرکز جدید آماده است.');
+    }
+  };
+
+  const handleSetPomoMode = (mode) => {
+    sfx.playPop();
+    triggerHaptic(8);
+    setPomoMode(mode);
+    setTimerRunning(false);
+    setTimerSeconds(pomoDurations[mode] * 60);
+  };
+
+  const handleSelectPomoPreset = (min) => {
+    sfx.playPop();
+    triggerHaptic(8);
+    setPomoDurations((prev) => ({ ...prev, [pomoMode]: min }));
+    setTimerSeconds(min * 60);
+    setTimerRunning(false);
+  };
+
+  // --- Archive Handlers (Completed & Crumpled) ---
+  const handleRestoreCompletedTask = (item) => {
+    sfx.playPop();
+    triggerHaptic(10);
+    setDumps((prev) => [
+      {
+        id: 'd-' + Date.now(),
+        text: item.text,
+        mode: item.mode || 'untagged',
+        createdAt: 'بازگردانی شده از کارهای انجام‌شده',
+      },
+      ...prev,
+    ]);
+    setCompletedTasks((prev) => prev.filter((t) => t.id !== item.id));
+    showToast('بازگردانی شد', 'تسک به ورودی لال برگشت.');
+  };
+
+  const handleDeleteCompletedTask = (id) => {
+    triggerHaptic(12);
+    setCompletedTasks((prev) => prev.filter((t) => t.id !== id));
+    showToast('حذف شد', 'تسک از تاریخچه پاک شد.');
+  };
+
+  const handleClearAllCompleted = () => {
+    if (window.confirm('آیا از پاکسازی تمام تاریخچه کارهای انجام‌شده اطمینان دارید؟')) {
+      setCompletedTasks([]);
+      triggerHaptic([20, 20]);
+      showToast('پاکسازی شد', 'تاریخچه کارهای انجام‌شده پاک شد.');
+    }
+  };
+
+  const handleRestoreCrumpledPaper = (paper) => {
+    sfx.playPop();
+    triggerHaptic([15, 25]);
+    const tasksToRestore = (paper.tasks || [])
+      .filter((t) => !t.done)
+      .map((t) => ({
+        id: 'd-' + Date.now() + Math.random().toString(36).substr(2, 4),
+        text: t.text,
+        mode: t.mode || 'untagged',
+        createdAt: `بازیابی از کاغذ ${paper.date}`,
+      }));
+
+    if (tasksToRestore.length > 0) {
+      setDumps((prev) => [...tasksToRestore, ...prev]);
+      showToast('بازیابی موفق', `${tasksToRestore.length} کار ناتمام به ورودی لال برگشتند.`);
+    } else {
+      showToast('تمام کارهای این کاغذ انجام شده بودند', 'چیزی برای بازیابی نمانده است.');
+    }
+  };
+
+  const handleDeleteCrumpledPaper = (id) => {
+    triggerHaptic(12);
+    setCrumpledPapers((prev) => prev.filter((p) => p.id !== id));
+    showToast('حذف شد', 'کاغذ مچاله از بایگانی حذف شد.');
   };
 
   // --- Helpers ---
@@ -863,89 +1161,590 @@ export default function App() {
     return d.mode === filterMode;
   });
 
+  const filteredCompletedTasks = completedTasks.filter((t) => {
+    if (archiveFilterMode === 'all') return true;
+    return t.mode === archiveFilterMode;
+  });
+
   const completedStickyCount = ['deep', 'sync1', 'sync2'].filter(
     (k) => sticky[k] && sticky[k].done
   ).length;
   const totalStickyCount = ['deep', 'sync1', 'sync2'].filter((k) => sticky[k]).length;
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-  // --- Quick Capture Omnibox Component ---
-  const renderOmnibox = (isMobile = false) => (
-    <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-xl'} shrink-0`}>
-      <form
-        onSubmit={handleAddDump}
-        className="bg-slate-900/95 border border-slate-800/90 focus-within:border-amber-400/60 rounded-2xl p-2.5 shadow-xl flex flex-col gap-2 transition-all w-full"
-      >
-        {/* Row 1: Full-width text input */}
-        <div className="flex items-center gap-2 w-full">
-          <input
-            ref={isMobile ? mobileDumpInputRef : dumpInputRef}
-            type="text"
-            value={dumpInput}
-            onChange={(e) => setDumpInput(e.target.value)}
-            placeholder={isMobile ? 'تخلیه فوری ذهن در ورودی لال...' : 'تخلیه فوری ذهن در ورودی لال... (Ctrl + K)'}
-            className="min-w-0 flex-1 bg-transparent text-slate-100 placeholder-slate-500 text-sm px-1 py-1 focus:outline-none"
+  // --- Pomodoro Focus Hub Component (Prominent & Global) ---
+  const renderPomodoroTimer = (isMobile = false) => {
+    const currentDuration = pomoDurations[pomoMode] || 25;
+    const totalSeconds = currentDuration * 60;
+    const progressPercent = Math.min(100, Math.max(0, ((totalSeconds - timerSeconds) / totalSeconds) * 100));
+
+    // Active task linked to current focus block
+    const activeFocusTask = sticky.deep ? sticky.deep : (sticky.sync1 ? sticky.sync1 : (sticky.sync2 ? sticky.sync2 : null));
+
+    return (
+      <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-xl'} shrink-0 my-1`}>
+        <div
+          className={`relative rounded-3xl p-4 sm:p-5 border transition-all duration-500 shadow-2xl overflow-hidden backdrop-blur-xl ${
+            pomoMode === 'focus'
+              ? 'bg-slate-900/90 border-rose-500/35 shadow-rose-950/20'
+              : pomoMode === 'short_break'
+              ? 'bg-slate-900/90 border-amber-500/35 shadow-amber-950/20'
+              : 'bg-slate-900/90 border-emerald-500/35 shadow-emerald-950/20'
+          }`}
+        >
+          {/* Subtle Ambient Glow */}
+          <div
+            className={`absolute -top-16 left-1/2 -translate-x-1/2 w-80 h-32 rounded-full blur-3xl pointer-events-none opacity-20 transition-colors duration-500 ${
+              pomoMode === 'focus'
+                ? 'bg-rose-500'
+                : pomoMode === 'short_break'
+                ? 'bg-amber-400'
+                : 'bg-emerald-400'
+            }`}
           />
-          {dumpInput.trim() && (
+
+          {/* Top Bar: Mode Switcher + Pomodoro Cycle Tracker */}
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap sm:flex-nowrap relative z-10">
+            {/* Phase Switcher Tabs */}
+            <div className="flex items-center bg-slate-950/80 p-1 rounded-2xl border border-slate-800/80">
+              <button
+                type="button"
+                onClick={() => handleSetPomoMode('focus')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
+                  pomoMode === 'focus'
+                    ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Flame className="w-3.5 h-3.5" />
+                <span>تمرکز عمیق</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSetPomoMode('short_break')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
+                  pomoMode === 'short_break'
+                    ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Coffee className="w-3.5 h-3.5" />
+                <span>استراحت کوتاه</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSetPomoMode('long_break')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
+                  pomoMode === 'long_break'
+                    ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>استراحت طولانی</span>
+              </button>
+            </div>
+
+            {/* Cycle indicator */}
+            <div className="flex items-center gap-1.5 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800/80 shrink-0">
+              <span className="text-[11px] font-bold text-slate-400">دور {pomoCycle} از ۴:</span>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4].map((i) => {
+                  const isCurrent = pomoCycle === i;
+                  const isPast = pomoCycle > i;
+                  return (
+                    <span
+                      key={i}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        isPast
+                          ? 'bg-amber-400 ring-2 ring-amber-400/20'
+                          : isCurrent
+                          ? 'bg-rose-500 animate-pulse ring-2 ring-rose-500/40 scale-110'
+                          : 'bg-slate-800'
+                      }`}
+                      title={`پومودرو ${i}`}
+                    />
+                  );
+                })}
+              </div>
+              {completedPomodoros > 0 && (
+                <span className="text-[10px] text-amber-300 font-mono font-bold bg-amber-400/10 px-1.5 py-0.5 rounded mr-1">
+                  {completedPomodoros} 🍅
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Center Display: Large Digits & Presets */}
+          <div className="flex flex-col items-center justify-center py-1 sm:py-2 relative z-10">
+            <div className="flex items-baseline justify-center gap-2">
+              <span
+                className={`font-mono text-5xl sm:text-6xl font-black tracking-widest tabular-nums select-text drop-shadow-md ${
+                  pomoMode === 'focus'
+                    ? 'text-rose-100'
+                    : pomoMode === 'short_break'
+                    ? 'text-amber-100'
+                    : 'text-emerald-100'
+                }`}
+              >
+                {formatTime(timerSeconds)}
+              </span>
+            </div>
+
+            {/* Status caption & Preset Duration Pills */}
+            <div className="flex items-center justify-between w-full mt-2.5 gap-2 flex-wrap">
+              <span className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    timerRunning ? 'bg-emerald-400 animate-ping' : 'bg-slate-600'
+                  }`}
+                />
+                {pomoMode === 'focus'
+                  ? timerRunning
+                    ? 'در حال تمرکز عمیق بدون وقفه 🎯'
+                    : 'آماده برای آغاز دوره تمرکز پومودرو'
+                  : pomoMode === 'short_break'
+                  ? 'زمان ۵ دقیقه استراحت، نوشیدن آب و تنفس ☕'
+                  : 'زمان ۱۵ دقیقه استراحت طولانی و ریکاوری ذهن 🌴'}
+              </span>
+
+              {/* Presets */}
+              <div className="flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-xl border border-slate-800">
+                {pomoMode === 'focus' &&
+                  [25, 45, 90].map((min) => (
+                    <button
+                      key={min}
+                      type="button"
+                      onClick={() => handleSelectPomoPreset(min)}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all active:scale-95 ${
+                        currentDuration === min
+                          ? 'bg-rose-500 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {min}m
+                    </button>
+                  ))}
+
+                {pomoMode === 'short_break' &&
+                  [5, 10].map((min) => (
+                    <button
+                      key={min}
+                      type="button"
+                      onClick={() => handleSelectPomoPreset(min)}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all active:scale-95 ${
+                        currentDuration === min
+                          ? 'bg-amber-400 text-slate-950 shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {min}m
+                    </button>
+                  ))}
+
+                {pomoMode === 'long_break' &&
+                  [15, 20, 30].map((min) => (
+                    <button
+                      key={min}
+                      type="button"
+                      onClick={() => handleSelectPomoPreset(min)}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all active:scale-95 ${
+                        currentDuration === min
+                          ? 'bg-emerald-500 text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      {min}m
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {/* Smooth Progress Bar */}
+            <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-3 border border-slate-800/60">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  pomoMode === 'focus'
+                    ? 'bg-gradient-to-r from-rose-600 via-amber-400 to-rose-400'
+                    : pomoMode === 'short_break'
+                    ? 'bg-gradient-to-r from-amber-500 to-yellow-300'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-300'
+                }`}
+                style={{ width: `${progressPercent}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Linked Focus Task Bar */}
+          {activeFocusTask && (
+            <div className="mt-3 p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between gap-2 relative z-10">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 shrink-0">
+                  تسک جاری
+                </span>
+                <span
+                  className={`text-xs font-bold truncate ${
+                    activeFocusTask.done ? 'line-through text-slate-500' : 'text-slate-200'
+                  }`}
+                >
+                  {activeFocusTask.text}
+                </span>
+              </div>
+
+              {activeFocusTask.done ? (
+                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-xl shrink-0 flex items-center gap-1">
+                  <Check className="w-3 h-3 stroke-[3]" />
+                  انجام شد
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (sticky.deep) toggleStickyDone('deep');
+                    else if (sticky.sync1) toggleStickyDone('sync1');
+                    else if (sticky.sync2) toggleStickyDone('sync2');
+                  }}
+                  className="text-[10px] font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 px-2.5 py-1 rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                >
+                  <Check className="w-3 h-3 stroke-[3]" />
+                  <span>تکمیل تسک</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Action Controls: Play/Pause, Reset, Skip */}
+          <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-slate-800/80 relative z-10">
+            <button
+              type="button"
+              onClick={handleToggleTimer}
+              className={`flex-1 py-2.5 sm:py-3 px-5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg ${
+                timerRunning
+                  ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 shadow-rose-500/10'
+                  : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/20'
+              }`}
+            >
+              {timerRunning ? (
+                <>
+                  <Pause className="w-4 h-4 fill-current" />
+                  <span>توقف موقت</span>
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>شروع پومودرو</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetTimer}
+              className="p-2.5 sm:p-3 rounded-2xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 active:scale-95 transition-all shrink-0"
+              title="بازنشانی زمان"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={handleSkipPomoPhase}
+              className="px-3 py-2.5 sm:py-3 rounded-2xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 active:scale-95 transition-all shrink-0 flex items-center gap-1.5 text-xs font-bold"
+              title="رد کردن و رفتن به مرحله بعد"
+            >
+              <span>مرحله بعد</span>
+              <SkipForward className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // --- Archive Component: Completed Tasks & Crumpled Papers ---
+  const renderArchiveContent = (isMobile = false) => {
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Sub-tabs: Completed Tasks vs Crumpled Papers */}
+        <div className="p-3 border-b border-slate-800/70 flex items-center justify-between gap-2 shrink-0 bg-slate-950/40">
+          <div className="flex items-center gap-1.5 bg-slate-900/90 p-1 rounded-2xl border border-slate-800 flex-1">
             <button
               type="button"
               onClick={() => {
-                setDumpInput('');
+                setArchiveSubTab('completed');
                 triggerHaptic(8);
               }}
-              className="p-1 rounded-lg text-slate-500 hover:text-slate-300 shrink-0"
-              title="پاک کردن"
+              className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                archiveSubTab === 'completed'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
             >
-              <X className="w-4 h-4" />
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>کارهای انجام‌شده</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950 text-emerald-300">
+                {completedTasks.length}
+              </span>
             </button>
-          )}
-        </div>
 
-        {/* Row 2: Task Type pills (عمیق, تعاملی, سرپایی) + Submit button */}
-        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/70">
-          <div className="flex items-center gap-1.5 overflow-x-auto clean-scroll py-0.5">
-            {[
-              { key: 'deep', label: 'عمیق', dot: 'bg-rose-500', active: 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm' },
-              { key: 'sync', label: 'تعاملی', dot: 'bg-amber-400', active: 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm' },
-              { key: 'quick', label: 'سرپایی', dot: 'bg-emerald-400', active: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm' },
-            ].map((m) => {
-              const isSelected = quickMode === m.key;
-              return (
-                <button
-                  key={m.key}
-                  type="button"
-                  onClick={() => {
-                    setQuickMode(isSelected ? 'untagged' : m.key);
-                    triggerHaptic(8);
-                  }}
-                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all active:scale-95 shrink-0 ${
-                    isSelected
-                      ? m.active
-                      : 'bg-slate-950/60 text-slate-400 border-slate-800/80 hover:text-slate-200'
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${m.dot}`} />
-                  <span>{m.label}</span>
-                </button>
-              );
-            })}
+            <button
+              type="button"
+              onClick={() => {
+                setArchiveSubTab('crumpled');
+                triggerHaptic(8);
+              }}
+              className={`flex-1 py-1.5 px-2 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-1.5 ${
+                archiveSubTab === 'crumpled'
+                  ? 'bg-amber-400/20 text-amber-300 border border-amber-400/40 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Trash2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>کاغذهای مچاله</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-950 text-amber-300">
+                {crumpledPapers.length}
+              </span>
+            </button>
           </div>
-
-          <button
-            type="submit"
-            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1 active:scale-95 shadow-md shadow-amber-400/10 min-h-[34px]"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>ثبت</span>
-          </button>
         </div>
-      </form>
-    </div>
-  );
+
+        {archiveSubTab === 'completed' ? (
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Filter Pills & Clear Action */}
+            <div className="px-3.5 py-2 border-b border-slate-800/40 flex items-center justify-between gap-2 shrink-0">
+              <div className="flex items-center gap-1 overflow-x-auto clean-scroll py-0.5">
+                {[
+                  { key: 'all', label: 'همه' },
+                  { key: 'deep', label: '🔴 عمیق' },
+                  { key: 'sync', label: '🟡 تعاملی' },
+                  { key: 'quick', label: '🟢 سرپایی' },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => {
+                      setArchiveFilterMode(tab.key);
+                      triggerHaptic(6);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
+                      archiveFilterMode === tab.key
+                        ? 'bg-slate-200 text-slate-950 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200 bg-slate-900/60'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {completedTasks.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearAllCompleted}
+                  className="text-[10px] text-slate-500 hover:text-rose-400 transition-colors shrink-0 font-medium"
+                >
+                  پاکسازی همه
+                </button>
+              )}
+            </div>
+
+            {/* Completed Task List */}
+            <div className="flex-1 overflow-y-auto clean-scroll p-3 space-y-2">
+              {filteredCompletedTasks.length === 0 ? (
+                <div className="h-48 flex flex-col items-center justify-center text-slate-500 text-xs text-center px-4">
+                  <CheckCircle2 className="w-8 h-8 text-slate-700 mb-2 stroke-[1.5]" />
+                  <span className="font-bold text-slate-300">تسک انجام‌شده‌ای نیست</span>
+                  <span className="text-[11px] text-slate-500 mt-1">
+                    کارهای تیک‌خورده میز امروز یا ورودی لال در اینجا بایگانی می‌شوند.
+                  </span>
+                </div>
+              ) : (
+                filteredCompletedTasks.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-2xl bg-slate-900/90 border border-slate-800/80 hover:border-slate-700 transition-all shadow-sm"
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <div className="mt-0.5 w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                        <Check className="w-3 h-3 stroke-[3]" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-slate-200 font-bold leading-relaxed line-through decoration-emerald-500/60 break-words select-text">
+                          {item.text}
+                        </p>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          {item.mode && (
+                            <span
+                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                                MODE_META[item.mode]?.badge || 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {MODE_META[item.mode]?.label || item.mode}
+                            </span>
+                          )}
+                          <span className="text-[10px] text-slate-500">
+                            {item.completedAt}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-1.5 pt-2 mt-2 border-t border-slate-800/60">
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreCompletedTask(item)}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-[10px] font-bold flex items-center gap-1 active:scale-95 transition-all"
+                        title="بازگرداندن به ورودی لال"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>بازگردانی به ورودی</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCompletedTask(item.id)}
+                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors"
+                        title="حذف"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          /* Crumpled Papers Tab */
+          <div className="flex-1 overflow-y-auto clean-scroll p-3 space-y-3">
+            {crumpledPapers.length === 0 ? (
+              <div className="h-48 flex flex-col items-center justify-center text-slate-500 text-xs text-center px-4">
+                <div className="w-12 h-12 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mb-3">
+                  <Trash2 className="w-6 h-6 text-slate-600" />
+                </div>
+                <span className="font-bold text-slate-300">سطل کاغذهای مچاله خالی است</span>
+                <span className="text-[11px] text-slate-500 mt-1.5 leading-relaxed max-w-xs">
+                  هر زمان در میز امروز دکمه «مچاله کردن و شروع تازه» را بزنید، تاریخچه کارهای آن کاغذ در اینجا بایگانی می‌شود.
+                </span>
+              </div>
+            ) : (
+              crumpledPapers.map((paper, idx) => {
+                const total = paper.totalCount || (paper.tasks ? paper.tasks.length : 3);
+                const doneCount =
+                  paper.completedCount ||
+                  (paper.tasks ? paper.tasks.filter((t) => t.done).length : 0);
+                const percentage = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+                return (
+                  <div
+                    key={paper.id}
+                    className="rounded-2xl p-4 border transition-all duration-300 relative overflow-hidden bg-gradient-to-br from-amber-500/10 via-slate-900/90 to-slate-950 border-amber-500/25 shadow-md group"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2 pb-2.5 mb-2.5 border-b border-amber-500/15">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="w-6 h-6 rounded-lg bg-amber-400/20 text-amber-300 flex items-center justify-center shrink-0">
+                          <FileText className="w-3.5 h-3.5" />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-black text-amber-200 truncate">
+                            کاغذ مچاله شده #{crumpledPapers.length - idx}
+                          </h4>
+                          <span className="text-[10px] text-slate-400 font-medium block">
+                            {paper.date}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-400/15 text-amber-300 border border-amber-400/30 shrink-0">
+                        {doneCount} از {total} ({percentage}٪)
+                      </span>
+                    </div>
+
+                    {/* Progress Bar */}
+                    <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mb-3">
+                      <div
+                        className="h-full bg-gradient-to-r from-amber-400 to-emerald-400 rounded-full"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+
+                    {/* Tasks on this crumpled sheet */}
+                    <div className="space-y-1.5 mb-3">
+                      {paper.tasks &&
+                        paper.tasks.map((task, tIdx) => (
+                          <div
+                            key={tIdx}
+                            className={`p-2 rounded-xl flex items-center justify-between gap-2 text-xs border ${
+                              task.done
+                                ? 'bg-emerald-950/20 border-emerald-800/30 text-emerald-200'
+                                : 'bg-slate-950/50 border-slate-800/60 text-slate-400'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              {task.done ? (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                              ) : (
+                                <RotateCcw className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              )}
+                              <span
+                                className={`truncate text-xs ${
+                                  task.done
+                                    ? 'line-through text-slate-300 font-medium'
+                                    : 'text-slate-300'
+                                }`}
+                              >
+                                {task.text}
+                              </span>
+                            </div>
+
+                            <span
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                task.done
+                                  ? 'bg-emerald-500/20 text-emerald-300'
+                                  : 'bg-slate-800 text-slate-400'
+                              }`}
+                            >
+                              {task.done ? 'تکمیل شد' : 'برگشت به ورودی'}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/60">
+                      <button
+                        type="button"
+                        onClick={() => handleRestoreCrumpledPaper(paper)}
+                        className="px-2.5 py-1 rounded-xl bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 font-bold text-[10px] transition-all flex items-center gap-1 active:scale-95"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>بازیابی کارهای ناتمام</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteCrumpledPaper(paper.id)}
+                        className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors"
+                        title="حذف از بایگانی"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // --- Sticky Note Component (Used on Desktop & Mobile) ---
   const renderStickyNote = (isMobile = false) => (
-    <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-xl'} my-auto py-2 flex flex-col items-center`}>
+    <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-xl'} my-1 py-1 flex flex-col items-center`}>
       <div
         className={`w-full sticky-paper rounded-2xl p-4 sm:p-6 text-slate-900 relative transition-all duration-300 ${
           isCrumpling ? 'animate-crumple' : 'rotate-[-0.3deg] hover:rotate-0'
@@ -965,7 +1764,7 @@ export default function App() {
           </span>
         </div>
 
-        {/* Slot 1: Deep Work */}
+        {/* Slot 1: Deep Work (Clean Paper note, timer elevated to Pomodoro hub) */}
         <div className="mb-4">
           <div className="flex items-center justify-between gap-1 mb-2 flex-wrap sm:flex-nowrap">
             <span className="text-[11px] font-extrabold text-rose-950 flex items-center gap-1.5 shrink-0">
@@ -973,40 +1772,10 @@ export default function App() {
               ۱ کار عمیق (سازنده)
             </span>
 
-            {/* Mini Focus Timer */}
-            <div className="flex items-center gap-1 bg-slate-900/10 px-2 py-0.5 rounded-lg shrink-0">
-              {[45, 90].map((min) => (
-                <button
-                  key={min}
-                  onClick={() => {
-                    setSelectedPreset(min);
-                    setTimerSeconds(min * 60);
-                    setTimerRunning(false);
-                    triggerHaptic(8);
-                  }}
-                  className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors active:scale-90 ${
-                    selectedPreset === min
-                      ? 'bg-slate-900 text-amber-300'
-                      : 'text-slate-700 hover:bg-slate-900/10'
-                  }`}
-                >
-                  {min}m
-                </button>
-              ))}
-              <span className="font-mono font-extrabold text-xs text-slate-900 mx-1">
-                {formatTime(timerSeconds)}
-              </span>
-              <button
-                onClick={() => {
-                  sfx.playPop();
-                  triggerHaptic(10);
-                  setTimerRunning(!timerRunning);
-                }}
-                className="p-1.5 rounded-md bg-rose-600 text-white hover:bg-rose-500 transition-colors active:scale-90"
-              >
-                {timerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-              </button>
-            </div>
+            <span className="text-[10px] font-bold text-rose-950/70 bg-rose-500/15 px-2 py-0.5 rounded-md flex items-center gap-1">
+              <Timer className="w-3 h-3 text-rose-700" />
+              <span>متصل به پومودرو</span>
+            </span>
           </div>
 
           {sticky.deep ? (
@@ -1135,11 +1904,24 @@ export default function App() {
           </div>
         </div>
 
-        {/* Sticky Footer: Crumple Action */}
+        {/* Sticky Footer: Crumple Action & Archive Link */}
         <div className="mt-4 pt-3 border-t border-slate-900/10 flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-slate-700">
-            مچاله‌شده‌ها: {crumpleCount}
-          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setSideDrawerOpen(true);
+              setSideDrawerTab('archive');
+              setArchiveSubTab('crumpled');
+              setActiveMobileTab('archive');
+              triggerHaptic(8);
+            }}
+            className="text-[11px] font-bold text-slate-800 hover:text-rose-950 underline underline-offset-2 flex items-center gap-1 transition-colors"
+            title="مشاهده بایگانی کاغذهای مچاله شده"
+          >
+            <Archive className="w-3.5 h-3.5 text-amber-900" />
+            <span>مچاله‌شده‌ها: {crumpleCount}</span>
+          </button>
+
           <button
             onClick={handleCrumpleSticky}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-rose-950 text-amber-300 hover:text-rose-200 font-bold text-xs transition-all shadow-sm active:scale-95"
@@ -1330,20 +2112,61 @@ export default function App() {
             </button>
           )}
 
-          {/* Toggle Inbox Drawer */}
+          {/* Pomodoro Live Header Indicator */}
+          {timerRunning && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-mono font-bold animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-rose-500" />
+              <span>{pomoMode === 'focus' ? 'تمرکز' : 'استراحت'}: {formatTime(timerSeconds)}</span>
+            </div>
+          )}
+
+          {/* Toggle Inbox Drawer Button */}
           <button
-            onClick={() => setInboxOpen(!inboxOpen)}
+            onClick={() => {
+              if (inboxOpen && sideDrawerTab === 'inbox') {
+                setInboxOpen(false);
+              } else {
+                setInboxOpen(true);
+                setSideDrawerTab('inbox');
+              }
+              triggerHaptic(10);
+            }}
             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 ${
-              inboxOpen
+              inboxOpen && sideDrawerTab === 'inbox'
                 ? 'bg-slate-800 border-slate-700 text-white'
                 : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
             }`}
-            title="ورودی لال"
+            title="ورودی لال (Brain Dump)"
           >
             <Inbox className="w-4 h-4 text-amber-400" />
             <span>ورودی</span>
             <span className="px-1.5 py-0.2 rounded-md bg-slate-950 text-slate-300 text-[11px]">
               {dumps.length}
+            </span>
+          </button>
+
+          {/* Toggle Completed & Crumpled Archive Drawer Button */}
+          <button
+            onClick={() => {
+              if (inboxOpen && sideDrawerTab === 'archive') {
+                setInboxOpen(false);
+              } else {
+                setInboxOpen(true);
+                setSideDrawerTab('archive');
+              }
+              triggerHaptic(10);
+            }}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 ${
+              inboxOpen && sideDrawerTab === 'archive'
+                ? 'bg-slate-800 border-slate-700 text-white'
+                : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
+            title="کارهای انجام‌شده و کاغذهای مچاله شده"
+          >
+            <Archive className="w-4 h-4 text-emerald-400" />
+            <span>انجام و مچاله</span>
+            <span className="px-1.5 py-0.2 rounded-md bg-slate-950 text-slate-300 text-[11px]">
+              {completedTasks.length + crumpledPapers.length}
             </span>
           </button>
 
@@ -1449,13 +2272,14 @@ export default function App() {
 
       {/* --- DESKTOP WORKSPACE LAYOUT (hidden on mobile < md) --- */}
       <div className="relative z-10 flex-1 hidden md:flex overflow-hidden">
-        {/* Center Canvas: Omnibox + Sticky Note */}
-        <main className="flex-1 h-full overflow-y-auto clean-scroll flex flex-col items-center justify-between px-4 py-5 sm:py-6">
+        {/* Center Canvas: Omnibox + Pomodoro Timer + Sticky Note */}
+        <main className="flex-1 h-full overflow-y-auto clean-scroll flex flex-col items-center justify-start gap-4 px-4 py-5 sm:py-6">
           {renderOmnibox(false)}
+          {renderPomodoroTimer(false)}
           {renderStickyNote(false)}
 
           {/* Minimal Footer Hint */}
-          <div className="text-[11px] text-slate-500 flex items-center gap-4 shrink-0">
+          <div className="text-[11px] text-slate-500 flex items-center gap-4 shrink-0 py-2">
             <span>فقط ۳ کار در روز</span>
             <span>•</span>
             <span>بدون لیست عقب‌افتاده</span>
@@ -1468,115 +2292,153 @@ export default function App() {
           </div>
         </main>
 
-        {/* Collapsible Side Panel: Dumb Inbox */}
+        {/* Collapsible Side Panel: Dumb Inbox & Completed/Crumpled Archive */}
         {inboxOpen && (
           <aside className="w-80 lg:w-96 h-full border-r border-slate-800/70 bg-slate-950/75 backdrop-blur-xl flex flex-col shrink-0 z-20">
-            {/* Drawer Header */}
-            <div className="p-4 border-b border-slate-800/70 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2">
-                <Inbox className="w-4 h-4 text-amber-400" />
-                <h3 className="font-bold text-sm text-white">ورودی لال (Brain Dump)</h3>
+            {/* Top View Switcher Tabs: Inbox vs Archive */}
+            <div className="p-3 border-b border-slate-800/70 flex items-center justify-between shrink-0 gap-2">
+              <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-2xl border border-slate-800 flex-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSideDrawerTab('inbox');
+                    triggerHaptic(8);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${
+                    sideDrawerTab === 'inbox'
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Inbox className="w-3.5 h-3.5 text-amber-400" />
+                  <span>ورودی ({dumps.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSideDrawerTab('archive');
+                    triggerHaptic(8);
+                  }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl text-xs font-bold transition-all ${
+                    sideDrawerTab === 'archive'
+                      ? 'bg-slate-800 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Archive className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>انجام و مچاله ({completedTasks.length + crumpledPapers.length})</span>
+                </button>
               </div>
+
               <button
                 onClick={() => setInboxOpen(false)}
-                className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition-colors"
+                className="p-1.5 rounded-xl hover:bg-slate-800 text-slate-400 hover:text-white transition-colors shrink-0"
+                title="بستن پنل"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Filter Pills */}
-            <div className="px-4 py-2.5 border-b border-slate-800/50 flex items-center gap-1 overflow-x-auto clean-scroll shrink-0">
-              {[
-                { key: 'all', label: 'همه' },
-                { key: 'untagged', label: 'بی‌برچسب' },
-                { key: 'deep', label: '🔴 عمیق' },
-                { key: 'sync', label: '🟡 تعاملی' },
-                { key: 'quick', label: '🟢 سرپایی' },
-              ].map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setFilterMode(tab.key)}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
-                    filterMode === tab.key
-                      ? 'bg-slate-200 text-slate-950'
-                      : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Inbox List */}
-            <div className="flex-1 overflow-y-auto clean-scroll p-3 space-y-2">
-              {filteredDumps.length === 0 ? (
-                <div className="h-48 flex flex-col items-center justify-center text-slate-500 text-xs">
-                  <span>ورودی خالی است.</span>
-                </div>
-              ) : (
-                filteredDumps.map((item) => {
-                  return (
-                    <div
-                      key={item.id}
-                      className="p-3 rounded-xl bg-slate-900/90 border border-slate-800/80 hover:border-slate-700 transition-all group"
+            {sideDrawerTab === 'inbox' ? (
+              <>
+                {/* Filter Pills */}
+                <div className="px-4 py-2.5 border-b border-slate-800/50 flex items-center gap-1 overflow-x-auto clean-scroll shrink-0">
+                  {[
+                    { key: 'all', label: 'همه' },
+                    { key: 'untagged', label: 'بی‌برچسب' },
+                    { key: 'deep', label: '🔴 عمیق' },
+                    { key: 'sync', label: '🟡 تعاملی' },
+                    { key: 'quick', label: '🟢 سرپایی' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      onClick={() => setFilterMode(tab.key)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all ${
+                        filterMode === tab.key
+                          ? 'bg-slate-200 text-slate-950'
+                          : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                      }`}
                     >
-                      <p className="text-xs text-slate-200 font-medium leading-relaxed mb-2.5">
-                        {item.text}
-                      </p>
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
 
-                      <div className="flex items-center justify-between gap-1 pt-2 border-t border-slate-800/60">
-                        {/* Mode Tag Dots */}
-                        <div className="flex items-center gap-1">
-                          {['deep', 'sync', 'quick'].map((m) => (
-                            <button
-                              key={m}
-                              onClick={() => handleSetDumpMode(item.id, m)}
-                              className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all ${
-                                item.mode === m
-                                  ? MODE_META[m].badge
-                                  : 'bg-slate-950/60 text-slate-500 border-slate-800 hover:text-slate-300'
-                              }`}
-                            >
-                              {MODE_META[m].label}
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex items-center gap-1">
-                          {item.mode === 'quick' ? (
-                            <button
-                              onClick={() => handleCompleteQuickDump(item.id)}
-                              className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-bold text-[10px] transition-all flex items-center gap-1"
-                            >
-                              <CheckCircle2 className="w-3 h-3" />
-                              <span>تیک</span>
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => promoteToSticky(item)}
-                              title="انتقال به استیکی‌نوت"
-                              className="px-2 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 font-bold text-[10px] transition-all flex items-center gap-1"
-                            >
-                              <span>میز امروز</span>
-                              <ArrowUpLeft className="w-3 h-3" />
-                            </button>
-                          )}
-
-                          <button
-                            onClick={() => handleDeleteDump(item.id)}
-                            className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
+                {/* Inbox List */}
+                <div className="flex-1 overflow-y-auto clean-scroll p-3 space-y-2">
+                  {filteredDumps.length === 0 ? (
+                    <div className="h-48 flex flex-col items-center justify-center text-slate-500 text-xs">
+                      <span>ورودی خالی است.</span>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  ) : (
+                    filteredDumps.map((item) => {
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3 rounded-xl bg-slate-900/90 border border-slate-800/80 hover:border-slate-700 transition-all group"
+                        >
+                          <p className="text-xs text-slate-200 font-medium leading-relaxed mb-2.5">
+                            {item.text}
+                          </p>
+
+                          <div className="flex items-center justify-between gap-1 pt-2 border-t border-slate-800/60">
+                            {/* Mode Tag Dots */}
+                            <div className="flex items-center gap-1">
+                              {['deep', 'sync', 'quick'].map((m) => (
+                                <button
+                                  key={m}
+                                  onClick={() => handleSetDumpMode(item.id, m)}
+                                  className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition-all ${
+                                    item.mode === m
+                                      ? MODE_META[m].badge
+                                      : 'bg-slate-950/60 text-slate-500 border-slate-800 hover:text-slate-300'
+                                  }`}
+                                >
+                                  {MODE_META[m].label}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-1">
+                              {item.mode === 'quick' ? (
+                                <button
+                                  onClick={() => handleCompleteQuickDump(item.id)}
+                                  className="px-2 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500 text-emerald-300 hover:text-slate-950 font-bold text-[10px] transition-all flex items-center gap-1"
+                                >
+                                  <CheckCircle2 className="w-3 h-3" />
+                                  <span>تیک</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => promoteToSticky(item)}
+                                  title="انتقال به استیکی‌نوت"
+                                  className="px-2 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 font-bold text-[10px] transition-all flex items-center gap-1"
+                                >
+                                  <span>میز امروز</span>
+                                  <ArrowUpLeft className="w-3 h-3" />
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => handleDeleteDump(item.id)}
+                                className="p-1 rounded-lg text-slate-500 hover:text-rose-400 transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            ) : (
+              /* Archive Content in Side Panel */
+              renderArchiveContent(false)
+            )}
           </aside>
         )}
       </div>
@@ -1585,8 +2447,9 @@ export default function App() {
       <div className="relative z-10 flex-1 flex md:hidden flex-col overflow-hidden">
         {/* TAB 1: FOCUS / STICKY NOTE */}
         {activeMobileTab === 'focus' && (
-          <div className="flex-1 overflow-y-auto clean-scroll px-3.5 pt-3 pb-24 flex flex-col items-center">
+          <div className="flex-1 overflow-y-auto clean-scroll px-3.5 pt-3 pb-24 flex flex-col items-center gap-2">
             {renderOmnibox(true)}
+            {renderPomodoroTimer(true)}
             {renderStickyNote(true)}
 
             {/* Quick Pick helper from Brain Dump if slots are open */}
@@ -1737,6 +2600,13 @@ export default function App() {
                 ))
               )}
             </div>
+          </div>
+        )}
+
+        {/* TAB: ARCHIVE (Completed Tasks & Crumpled Papers) */}
+        {activeMobileTab === 'archive' && (
+          <div className="flex-1 flex flex-col overflow-hidden pb-24">
+            {renderArchiveContent(true)}
           </div>
         )}
 
@@ -2158,7 +3028,7 @@ export default function App() {
 
       {/* --- MOBILE BOTTOM NAVIGATION BAR (< md, Safe Area Aware) --- */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-2xl border-t border-slate-800/90 pb-safe transition-all shadow-[0_-8px_30px_rgba(0,0,0,0.5)]">
-        <div className="grid grid-cols-4 h-16 px-1">
+        <div className="grid grid-cols-5 h-16 px-1">
           {/* Tab 1: میز امروز */}
           <button
             onClick={() => {
@@ -2213,7 +3083,34 @@ export default function App() {
             )}
           </button>
 
-          {/* Tab 3: تم و زمان */}
+          {/* Tab 3: انجام و مچاله */}
+          <button
+            onClick={() => {
+              setActiveMobileTab('archive');
+              triggerHaptic(8);
+            }}
+            className={`flex flex-col items-center justify-center gap-1 transition-all relative ${
+              activeMobileTab === 'archive'
+                ? 'text-amber-400 font-extrabold'
+                : 'text-slate-400 font-medium'
+            }`}
+          >
+            <div
+              className={`p-1 rounded-xl transition-all ${
+                activeMobileTab === 'archive' ? 'bg-amber-400/15 scale-110' : ''
+              }`}
+            >
+              <Archive className="w-5 h-5" />
+            </div>
+            <span className="text-[10px] leading-none">انجام و مچاله</span>
+            {completedTasks.length + crumpledPapers.length > 0 && (
+              <span className="absolute top-1 right-1/4 px-1.5 py-0.2 rounded-full text-[9px] bg-slate-800 border border-slate-700 text-emerald-300 font-bold">
+                {completedTasks.length + crumpledPapers.length}
+              </span>
+            )}
+          </button>
+
+          {/* Tab 4: تم و زمان */}
           <button
             onClick={() => {
               setActiveMobileTab('themes');
@@ -2235,7 +3132,7 @@ export default function App() {
             <span className="text-[10px] leading-none">تم و یادآور</span>
           </button>
 
-          {/* Tab 4: سینک و تنظیمات */}
+          {/* Tab 5: سینک و تنظیمات */}
           <button
             onClick={() => {
               setActiveMobileTab('settings');
