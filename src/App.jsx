@@ -1172,7 +1172,81 @@ export default function App() {
   const totalStickyCount = ['deep', 'sync1', 'sync2'].filter((k) => sticky[k]).length;
   const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
 
-  // --- Pomodoro Focus Hub Component (Prominent & Global) ---
+  // --- Quick Capture Omnibox Component ---
+  const renderOmnibox = (isMobile = false) => (
+    <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-xl'} shrink-0`}>
+      <form
+        onSubmit={handleAddDump}
+        className="bg-slate-900/95 border border-slate-800/90 focus-within:border-amber-400/60 rounded-2xl p-2.5 shadow-xl flex flex-col gap-2 transition-all w-full"
+      >
+        {/* Row 1: Full-width text input */}
+        <div className="flex items-center gap-2 w-full">
+          <input
+            ref={isMobile ? mobileDumpInputRef : dumpInputRef}
+            type="text"
+            value={dumpInput}
+            onChange={(e) => setDumpInput(e.target.value)}
+            placeholder={isMobile ? 'تخلیه فوری ذهن در ورودی لال...' : 'تخلیه فوری ذهن در ورودی لال... (Ctrl + K)'}
+            className="min-w-0 flex-1 bg-transparent text-slate-100 placeholder-slate-500 text-sm px-1 py-1 focus:outline-none"
+          />
+          {dumpInput.trim() && (
+            <button
+              type="button"
+              onClick={() => {
+                setDumpInput('');
+                triggerHaptic(8);
+              }}
+              className="p-1 rounded-lg text-slate-500 hover:text-slate-300 shrink-0"
+              title="پاک کردن"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Row 2: Task Type pills (عمیق, تعاملی, سرپایی) + Submit button */}
+        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-800/70">
+          <div className="flex items-center gap-1.5 overflow-x-auto clean-scroll py-0.5">
+            {[
+              { key: 'deep', label: 'عمیق', dot: 'bg-rose-500', active: 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm' },
+              { key: 'sync', label: 'تعاملی', dot: 'bg-amber-400', active: 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm' },
+              { key: 'quick', label: 'سرپایی', dot: 'bg-emerald-400', active: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm' },
+            ].map((m) => {
+              const isSelected = quickMode === m.key;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => {
+                    setQuickMode(isSelected ? 'untagged' : m.key);
+                    triggerHaptic(8);
+                  }}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold border transition-all active:scale-95 shrink-0 ${
+                    isSelected
+                      ? m.active
+                      : 'bg-slate-950/60 text-slate-400 border-slate-800/80 hover:text-slate-200'
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${m.dot}`} />
+                  <span>{m.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            type="submit"
+            className="bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold text-xs px-3.5 py-1.5 rounded-xl transition-all shrink-0 flex items-center gap-1 active:scale-95 shadow-md shadow-amber-400/10 min-h-[34px]"
+          >
+            <Plus className="w-4 h-4 stroke-[2.5]" />
+            <span>ثبت</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+
+  // --- Pomodoro Focus Hub Component (Compact & Balanced) ---
   const renderPomodoroTimer = (isMobile = false) => {
     const currentDuration = pomoDurations[pomoMode] || 25;
     const totalSeconds = currentDuration * 60;
@@ -1182,19 +1256,19 @@ export default function App() {
     const activeFocusTask = sticky.deep ? sticky.deep : (sticky.sync1 ? sticky.sync1 : (sticky.sync2 ? sticky.sync2 : null));
 
     return (
-      <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-xl'} shrink-0 my-1`}>
+      <div className="w-full h-full flex flex-col justify-start">
         <div
-          className={`relative rounded-3xl p-4 sm:p-5 border transition-all duration-500 shadow-2xl overflow-hidden backdrop-blur-xl ${
+          className={`relative rounded-2xl p-3.5 sm:p-4 border transition-all duration-500 shadow-xl overflow-hidden backdrop-blur-xl flex flex-col justify-between h-full ${
             pomoMode === 'focus'
-              ? 'bg-slate-900/90 border-rose-500/35 shadow-rose-950/20'
+              ? 'bg-slate-900/90 border-rose-500/30 shadow-rose-950/20'
               : pomoMode === 'short_break'
-              ? 'bg-slate-900/90 border-amber-500/35 shadow-amber-950/20'
-              : 'bg-slate-900/90 border-emerald-500/35 shadow-emerald-950/20'
+              ? 'bg-slate-900/90 border-amber-500/30 shadow-amber-950/20'
+              : 'bg-slate-900/90 border-emerald-500/30 shadow-emerald-950/20'
           }`}
         >
           {/* Subtle Ambient Glow */}
           <div
-            className={`absolute -top-16 left-1/2 -translate-x-1/2 w-80 h-32 rounded-full blur-3xl pointer-events-none opacity-20 transition-colors duration-500 ${
+            className={`absolute -top-12 left-1/2 -translate-x-1/2 w-64 h-24 rounded-full blur-2xl pointer-events-none opacity-20 transition-colors duration-500 ${
               pomoMode === 'focus'
                 ? 'bg-rose-500'
                 : pomoMode === 'short_break'
@@ -1204,52 +1278,52 @@ export default function App() {
           />
 
           {/* Top Bar: Mode Switcher + Pomodoro Cycle Tracker */}
-          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap sm:flex-nowrap relative z-10">
+          <div className="flex items-center justify-between gap-1.5 mb-2 flex-wrap sm:flex-nowrap relative z-10">
             {/* Phase Switcher Tabs */}
-            <div className="flex items-center bg-slate-950/80 p-1 rounded-2xl border border-slate-800/80">
+            <div className="flex items-center bg-slate-950/80 p-0.5 rounded-xl border border-slate-800/80">
               <button
                 type="button"
                 onClick={() => handleSetPomoMode('focus')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
                   pomoMode === 'focus'
-                    ? 'bg-rose-500 text-white shadow-md shadow-rose-500/25'
+                    ? 'bg-rose-500 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Flame className="w-3.5 h-3.5" />
-                <span>تمرکز عمیق</span>
+                <Flame className="w-3 h-3" />
+                <span>تمرکز</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSetPomoMode('short_break')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
                   pomoMode === 'short_break'
-                    ? 'bg-amber-400 text-slate-950 shadow-md shadow-amber-400/25'
+                    ? 'bg-amber-400 text-slate-950 shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Coffee className="w-3.5 h-3.5" />
-                <span>استراحت کوتاه</span>
+                <Coffee className="w-3 h-3" />
+                <span>استراحت</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSetPomoMode('long_break')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 ${
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
                   pomoMode === 'long_break'
-                    ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/25'
+                    ? 'bg-emerald-500 text-white shadow-sm'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>استراحت طولانی</span>
+                <Sparkles className="w-3 h-3" />
+                <span>طولانی</span>
               </button>
             </div>
 
             {/* Cycle indicator */}
-            <div className="flex items-center gap-1.5 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-slate-800/80 shrink-0">
-              <span className="text-[11px] font-bold text-slate-400">دور {pomoCycle} از ۴:</span>
+            <div className="flex items-center gap-1 bg-slate-950/80 px-2 py-1 rounded-xl border border-slate-800/80 shrink-0">
+              <span className="text-[10px] font-bold text-slate-400">دور {pomoCycle}/۴:</span>
               <div className="flex items-center gap-1">
                 {[1, 2, 3, 4].map((i) => {
                   const isCurrent = pomoCycle === i;
@@ -1257,11 +1331,11 @@ export default function App() {
                   return (
                     <span
                       key={i}
-                      className={`w-2 h-2 rounded-full transition-all ${
+                      className={`w-1.5 h-1.5 rounded-full transition-all ${
                         isPast
-                          ? 'bg-amber-400 ring-2 ring-amber-400/20'
+                          ? 'bg-amber-400 ring-1 ring-amber-400/20'
                           : isCurrent
-                          ? 'bg-rose-500 animate-pulse ring-2 ring-rose-500/40 scale-110'
+                          ? 'bg-rose-500 animate-pulse ring-1 ring-rose-500/40 scale-125'
                           : 'bg-slate-800'
                       }`}
                       title={`پومودرو ${i}`}
@@ -1270,18 +1344,18 @@ export default function App() {
                 })}
               </div>
               {completedPomodoros > 0 && (
-                <span className="text-[10px] text-amber-300 font-mono font-bold bg-amber-400/10 px-1.5 py-0.5 rounded mr-1">
+                <span className="text-[9px] text-amber-300 font-mono font-bold bg-amber-400/10 px-1 py-0.2 rounded mr-0.5">
                   {completedPomodoros} 🍅
                 </span>
               )}
             </div>
           </div>
 
-          {/* Center Display: Large Digits & Presets */}
-          <div className="flex flex-col items-center justify-center py-1 sm:py-2 relative z-10">
-            <div className="flex items-baseline justify-center gap-2">
+          {/* Center Display: Compact Digits & Presets */}
+          <div className="flex flex-col items-center justify-center py-1 relative z-10">
+            <div className="flex items-baseline justify-center">
               <span
-                className={`font-mono text-5xl sm:text-6xl font-black tracking-widest tabular-nums select-text drop-shadow-md ${
+                className={`font-mono text-4xl sm:text-[42px] font-black tracking-widest tabular-nums select-text drop-shadow-md leading-tight ${
                   pomoMode === 'focus'
                     ? 'text-rose-100'
                     : pomoMode === 'short_break'
@@ -1294,31 +1368,31 @@ export default function App() {
             </div>
 
             {/* Status caption & Preset Duration Pills */}
-            <div className="flex items-center justify-between w-full mt-2.5 gap-2 flex-wrap">
-              <span className="text-xs font-medium text-slate-300 flex items-center gap-1.5">
+            <div className="flex items-center justify-between w-full mt-1.5 gap-1.5 flex-wrap">
+              <span className="text-[11px] font-medium text-slate-300 flex items-center gap-1">
                 <span
-                  className={`w-2 h-2 rounded-full ${
+                  className={`w-1.5 h-1.5 rounded-full ${
                     timerRunning ? 'bg-emerald-400 animate-ping' : 'bg-slate-600'
                   }`}
                 />
                 {pomoMode === 'focus'
                   ? timerRunning
-                    ? 'در حال تمرکز عمیق بدون وقفه 🎯'
-                    : 'آماده برای آغاز دوره تمرکز پومودرو'
+                    ? 'تمرکز عمیق بدون وقفه 🎯'
+                    : 'آماده برای آغاز پومودرو'
                   : pomoMode === 'short_break'
-                  ? 'زمان ۵ دقیقه استراحت، نوشیدن آب و تنفس ☕'
-                  : 'زمان ۱۵ دقیقه استراحت طولانی و ریکاوری ذهن 🌴'}
+                  ? 'استراحت ۵ دقیقه‌ای ☕'
+                  : 'استراحت ۱۵ دقیقه‌ای 🌴'}
               </span>
 
               {/* Presets */}
-              <div className="flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-xl border border-slate-800">
+              <div className="flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800">
                 {pomoMode === 'focus' &&
                   [25, 45, 90].map((min) => (
                     <button
                       key={min}
                       type="button"
                       onClick={() => handleSelectPomoPreset(min)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all active:scale-95 ${
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded transition-all active:scale-95 ${
                         currentDuration === min
                           ? 'bg-rose-500 text-white shadow-sm'
                           : 'text-slate-400 hover:text-slate-200'
@@ -1334,7 +1408,7 @@ export default function App() {
                       key={min}
                       type="button"
                       onClick={() => handleSelectPomoPreset(min)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all active:scale-95 ${
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded transition-all active:scale-95 ${
                         currentDuration === min
                           ? 'bg-amber-400 text-slate-950 shadow-sm'
                           : 'text-slate-400 hover:text-slate-200'
@@ -1350,7 +1424,7 @@ export default function App() {
                       key={min}
                       type="button"
                       onClick={() => handleSelectPomoPreset(min)}
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-lg transition-all active:scale-95 ${
+                      className={`text-[9px] font-bold px-1.5 py-0.2 rounded transition-all active:scale-95 ${
                         currentDuration === min
                           ? 'bg-emerald-500 text-white shadow-sm'
                           : 'text-slate-400 hover:text-slate-200'
@@ -1363,7 +1437,7 @@ export default function App() {
             </div>
 
             {/* Smooth Progress Bar */}
-            <div className="w-full h-1.5 bg-slate-950 rounded-full overflow-hidden mt-3 border border-slate-800/60">
+            <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2 border border-slate-800/60">
               <div
                 className={`h-full transition-all duration-300 rounded-full ${
                   pomoMode === 'focus'
@@ -1379,13 +1453,13 @@ export default function App() {
 
           {/* Linked Focus Task Bar */}
           {activeFocusTask && (
-            <div className="mt-3 p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between gap-2 relative z-10">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 shrink-0">
+            <div className="mt-2 p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between gap-1.5 relative z-10">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 shrink-0">
                   تسک جاری
                 </span>
                 <span
-                  className={`text-xs font-bold truncate ${
+                  className={`text-[11px] font-bold truncate ${
                     activeFocusTask.done ? 'line-through text-slate-500' : 'text-slate-200'
                   }`}
                 >
@@ -1394,7 +1468,7 @@ export default function App() {
               </div>
 
               {activeFocusTask.done ? (
-                <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-xl shrink-0 flex items-center gap-1">
+                <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg shrink-0 flex items-center gap-1">
                   <Check className="w-3 h-3 stroke-[3]" />
                   انجام شد
                 </span>
@@ -1406,34 +1480,34 @@ export default function App() {
                     else if (sticky.sync1) toggleStickyDone('sync1');
                     else if (sticky.sync2) toggleStickyDone('sync2');
                   }}
-                  className="text-[10px] font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 px-2.5 py-1 rounded-xl shrink-0 flex items-center gap-1 active:scale-95 transition-all shadow-sm"
+                  className="text-[9px] font-bold text-slate-950 bg-emerald-400 hover:bg-emerald-300 px-2 py-0.5 rounded-lg shrink-0 flex items-center gap-1 active:scale-95 transition-all shadow-sm"
                 >
                   <Check className="w-3 h-3 stroke-[3]" />
-                  <span>تکمیل تسک</span>
+                  <span>تکمیل</span>
                 </button>
               )}
             </div>
           )}
 
           {/* Action Controls: Play/Pause, Reset, Skip */}
-          <div className="flex items-center justify-center gap-2 mt-3 pt-3 border-t border-slate-800/80 relative z-10">
+          <div className="flex items-center justify-center gap-1.5 mt-2.5 pt-2 border-t border-slate-800/80 relative z-10">
             <button
               type="button"
               onClick={handleToggleTimer}
-              className={`flex-1 py-2.5 sm:py-3 px-5 rounded-2xl font-black text-xs sm:text-sm flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg ${
+              className={`flex-1 py-2 px-3.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md ${
                 timerRunning
-                  ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40 shadow-rose-500/10'
+                  ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40'
                   : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/20'
               }`}
             >
               {timerRunning ? (
                 <>
-                  <Pause className="w-4 h-4 fill-current" />
+                  <Pause className="w-3.5 h-3.5 fill-current" />
                   <span>توقف موقت</span>
                 </>
               ) : (
                 <>
-                  <Play className="w-4 h-4 fill-current" />
+                  <Play className="w-3.5 h-3.5 fill-current" />
                   <span>شروع پومودرو</span>
                 </>
               )}
@@ -1442,20 +1516,20 @@ export default function App() {
             <button
               type="button"
               onClick={handleResetTimer}
-              className="p-2.5 sm:p-3 rounded-2xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 active:scale-95 transition-all shrink-0"
+              className="p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 active:scale-95 transition-all shrink-0"
               title="بازنشانی زمان"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
             </button>
 
             <button
               type="button"
               onClick={handleSkipPomoPhase}
-              className="px-3 py-2.5 sm:py-3 rounded-2xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 active:scale-95 transition-all shrink-0 flex items-center gap-1.5 text-xs font-bold"
+              className="px-2.5 py-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 active:scale-95 transition-all shrink-0 flex items-center gap-1 text-[11px] font-bold"
               title="رد کردن و رفتن به مرحله بعد"
             >
               <span>مرحله بعد</span>
-              <SkipForward className="w-3.5 h-3.5" />
+              <SkipForward className="w-3 h-3" />
             </button>
           </div>
         </div>
@@ -1744,9 +1818,9 @@ export default function App() {
 
   // --- Sticky Note Component (Used on Desktop & Mobile) ---
   const renderStickyNote = (isMobile = false) => (
-    <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-xl'} my-1 py-1 flex flex-col items-center`}>
+    <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-none'} flex flex-col items-center justify-start h-full`}>
       <div
-        className={`w-full sticky-paper rounded-2xl p-4 sm:p-6 text-slate-900 relative transition-all duration-300 ${
+        className={`w-full sticky-paper rounded-2xl p-4 sm:p-5 text-slate-900 relative transition-all duration-300 flex flex-col justify-between h-full ${
           isCrumpling ? 'animate-crumple' : 'rotate-[-0.3deg] hover:rotate-0'
         }`}
       >
@@ -2272,11 +2346,15 @@ export default function App() {
 
       {/* --- DESKTOP WORKSPACE LAYOUT (hidden on mobile < md) --- */}
       <div className="relative z-10 flex-1 hidden md:flex overflow-hidden">
-        {/* Center Canvas: Omnibox + Pomodoro Timer + Sticky Note */}
+        {/* Center Canvas: Omnibox + Dual Grid (Sticky Note & Pomodoro Timer side by side) */}
         <main className="flex-1 h-full overflow-y-auto clean-scroll flex flex-col items-center justify-start gap-4 px-4 py-5 sm:py-6">
           {renderOmnibox(false)}
-          {renderPomodoroTimer(false)}
-          {renderStickyNote(false)}
+
+          {/* Dual Side-by-Side Grid for Desktop */}
+          <div className="w-full max-w-4xl xl:max-w-5xl grid grid-cols-1 md:grid-cols-2 gap-4 lg:gap-6 items-stretch justify-center my-auto">
+            {renderStickyNote(false)}
+            {renderPomodoroTimer(false)}
+          </div>
 
           {/* Minimal Footer Hint */}
           <div className="text-[11px] text-slate-500 flex items-center gap-4 shrink-0 py-2">
