@@ -1256,34 +1256,16 @@ export default function App() {
     const activeFocusTask = sticky.deep ? sticky.deep : (sticky.sync1 ? sticky.sync1 : (sticky.sync2 ? sticky.sync2 : null));
 
     return (
-      <div className="w-full h-full flex flex-col justify-start">
-        <div
-          className={`relative rounded-2xl p-3.5 sm:p-4 border transition-all duration-500 shadow-xl overflow-hidden backdrop-blur-xl flex flex-col justify-between h-full ${
-            pomoMode === 'focus'
-              ? 'bg-slate-900/90 border-rose-500/30 shadow-rose-950/20'
-              : pomoMode === 'short_break'
-              ? 'bg-slate-900/90 border-amber-500/30 shadow-amber-950/20'
-              : 'bg-slate-900/90 border-emerald-500/30 shadow-emerald-950/20'
-          }`}
-        >
-          {/* Subtle Ambient Glow */}
-          <div
-            className={`absolute -top-12 left-1/2 -translate-x-1/2 w-64 h-24 rounded-full blur-2xl pointer-events-none opacity-20 transition-colors duration-500 ${
-              pomoMode === 'focus'
-                ? 'bg-rose-500'
-                : pomoMode === 'short_break'
-                ? 'bg-amber-400'
-                : 'bg-emerald-400'
-            }`}
-          />
-
+      <div className={`focus-timer ${isMobile ? 'focus-timer--mobile' : ''}`} data-mode={pomoMode} data-running={timerRunning}>
+        <div className="focus-timer__card">
           {/* Top Bar: Mode Switcher + Pomodoro Cycle Tracker */}
-          <div className="flex items-center justify-between gap-1.5 mb-2 flex-wrap sm:flex-nowrap relative z-10">
+          <div className="focus-timer__header">
             {/* Phase Switcher Tabs */}
-            <div className="flex items-center bg-slate-950/80 p-0.5 rounded-xl border border-slate-800/80">
+            <div className="focus-timer__tabs">
               <button
                 type="button"
                 onClick={() => handleSetPomoMode('focus')}
+                aria-pressed={pomoMode === 'focus'}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
                   pomoMode === 'focus'
                     ? 'bg-rose-500 text-white shadow-sm'
@@ -1297,6 +1279,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => handleSetPomoMode('short_break')}
+                aria-pressed={pomoMode === 'short_break'}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
                   pomoMode === 'short_break'
                     ? 'bg-amber-400 text-slate-950 shadow-sm'
@@ -1310,6 +1293,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => handleSetPomoMode('long_break')}
+                aria-pressed={pomoMode === 'long_break'}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all active:scale-95 ${
                   pomoMode === 'long_break'
                     ? 'bg-emerald-500 text-white shadow-sm'
@@ -1322,7 +1306,7 @@ export default function App() {
             </div>
 
             {/* Cycle indicator */}
-            <div className="flex items-center gap-1 bg-slate-950/80 px-2 py-1 rounded-xl border border-slate-800/80 shrink-0">
+            <div className="focus-timer__cycles">
               <span className="text-[10px] font-bold text-slate-400">دور {pomoCycle}/۴:</span>
               <div className="flex items-center gap-1">
                 {[1, 2, 3, 4].map((i) => {
@@ -1352,23 +1336,24 @@ export default function App() {
           </div>
 
           {/* Center Display: Compact Digits & Presets */}
-          <div className="flex flex-col items-center justify-center py-1 relative z-10">
-            <div className="flex items-baseline justify-center">
-              <span
-                className={`font-mono text-4xl sm:text-[42px] font-black tracking-widest tabular-nums select-text drop-shadow-md leading-tight ${
-                  pomoMode === 'focus'
-                    ? 'text-rose-100'
-                    : pomoMode === 'short_break'
-                    ? 'text-amber-100'
-                    : 'text-emerald-100'
-                }`}
-              >
-                {formatTime(timerSeconds)}
-              </span>
+          <div className="focus-timer__display">
+            <div className="focus-timer__dial">
+              <svg className="focus-timer__ring" viewBox="0 0 220 220" aria-hidden="true">
+                <circle className="focus-timer__ring-track" cx="110" cy="110" r="99" />
+                <circle className="focus-timer__ring-progress" cx="110" cy="110" r="99" pathLength="100" strokeDasharray="100" strokeDashoffset={100 - progressPercent} />
+              </svg>
+              <div className="focus-timer__dial-content">
+                <span className="focus-timer__eyebrow">{pomoMode === 'focus' ? 'یک لحظه، یک کار' : 'فرصتی برای نفس کشیدن'}</span>
+                <span className="focus-timer__time" dir="ltr" role="timer" aria-label="زمان باقی‌مانده">{formatTime(timerSeconds)}</span>
+                <span className="focus-timer__dial-label">
+                  <span className="focus-timer__status-dot" />
+                  {timerRunning ? 'در جریان' : timerSeconds < totalSeconds ? 'مکث کوتاه' : 'آماده شروع'}
+                </span>
+              </div>
             </div>
 
             {/* Status caption & Preset Duration Pills */}
-            <div className="flex items-center justify-between w-full mt-1.5 gap-1.5 flex-wrap">
+            <div className="focus-timer__details">
               <span className="text-[11px] font-medium text-slate-300 flex items-center gap-1">
                 <span
                   className={`w-1.5 h-1.5 rounded-full ${
@@ -1380,12 +1365,12 @@ export default function App() {
                     ? 'تمرکز عمیق بدون وقفه 🎯'
                     : 'آماده برای آغاز پومودرو'
                   : pomoMode === 'short_break'
-                  ? 'استراحت ۵ دقیقه‌ای ☕'
-                  : 'استراحت ۱۵ دقیقه‌ای 🌴'}
+                  ? `استراحت ${currentDuration} دقیقه‌ای`
+                  : `استراحت ${currentDuration} دقیقه‌ای`}
               </span>
 
               {/* Presets */}
-              <div className="flex items-center gap-1 bg-slate-950/80 p-0.5 rounded-lg border border-slate-800">
+              <div className="focus-timer__presets">
                 {pomoMode === 'focus' &&
                   [25, 45, 90].map((min) => (
                     <button
@@ -1437,7 +1422,7 @@ export default function App() {
             </div>
 
             {/* Smooth Progress Bar */}
-            <div className="w-full h-1 bg-slate-950 rounded-full overflow-hidden mt-2 border border-slate-800/60">
+            <div className="focus-timer__linear-progress" aria-hidden="true">
               <div
                 className={`h-full transition-all duration-300 rounded-full ${
                   pomoMode === 'focus'
@@ -1453,7 +1438,7 @@ export default function App() {
 
           {/* Linked Focus Task Bar */}
           {activeFocusTask && (
-            <div className="mt-2 p-2 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between gap-1.5 relative z-10">
+            <div className="focus-timer__task">
               <div className="flex items-center gap-1.5 min-w-0 flex-1">
                 <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 shrink-0">
                   تسک جاری
@@ -1490,15 +1475,11 @@ export default function App() {
           )}
 
           {/* Action Controls: Play/Pause, Reset, Skip */}
-          <div className="flex items-center justify-center gap-1.5 mt-2.5 pt-2 border-t border-slate-800/80 relative z-10">
+          <div className="focus-timer__controls">
             <button
               type="button"
               onClick={handleToggleTimer}
-              className={`flex-1 py-2 px-3.5 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-md ${
-                timerRunning
-                  ? 'bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 border border-rose-500/40'
-                  : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-amber-400/20'
-              }`}
+              className="focus-timer__primary"
             >
               {timerRunning ? (
                 <>
@@ -1516,7 +1497,8 @@ export default function App() {
             <button
               type="button"
               onClick={handleResetTimer}
-              className="p-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 active:scale-95 transition-all shrink-0"
+              className="focus-timer__secondary"
+              aria-label="بازنشانی زمان"
               title="بازنشانی زمان"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -1525,7 +1507,7 @@ export default function App() {
             <button
               type="button"
               onClick={handleSkipPomoPhase}
-              className="px-2.5 py-2 rounded-xl bg-slate-950/70 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-slate-200 active:scale-95 transition-all shrink-0 flex items-center gap-1 text-[11px] font-bold"
+              className="focus-timer__secondary focus-timer__skip"
               title="رد کردن و رفتن به مرحله بعد"
             >
               <span>مرحله بعد</span>
@@ -1818,29 +1800,27 @@ export default function App() {
 
   // --- Sticky Note Component (Used on Desktop & Mobile) ---
   const renderStickyNote = (isMobile = false) => (
-    <div className={`w-full ${isMobile ? 'max-w-none' : 'max-w-none'} flex flex-col items-center justify-start h-full`}>
+    <div className={`sticky-note ${isMobile ? 'sticky-note--mobile' : ''}`}>
       <div
-        className={`w-full sticky-paper rounded-2xl p-4 sm:p-5 text-slate-900 relative transition-all duration-300 flex flex-col justify-between h-full ${
-          isCrumpling ? 'animate-crumple' : 'rotate-[-0.3deg] hover:rotate-0'
-        }`}
+        className={`sticky-paper ${isCrumpling ? 'animate-crumple' : ''}`}
       >
         {/* Top Paper Tape */}
-        <div className="w-24 h-5 sm:h-6 bg-white/40 backdrop-blur-sm absolute -top-2.5 sm:-top-3 left-1/2 -translate-x-1/2 rotate-1 rounded-sm shadow-sm pointer-events-none" />
+        <div className="sticky-paper__tape" aria-hidden="true" />
 
         {/* Sticky Header */}
-        <div className="flex items-center justify-between border-b border-slate-900/10 pb-3 mb-3.5 sm:mb-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-900" />
-            <h2 className="font-extrabold text-sm sm:text-base text-slate-900">۳ خروجی امروز</h2>
+        <div className="sticky-paper__header">
+          <div>
+            <span className="sticky-paper__eyebrow">یادداشت روزانه</span>
+            <h2 className="sticky-paper__title">۳ خروجی امروز</h2>
           </div>
-          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-slate-900/10 text-slate-800">
+          <span className="sticky-paper__count" aria-label="تعداد کارهای تکمیل‌شده">
             {completedStickyCount} از {totalStickyCount || 3}
           </span>
         </div>
 
         {/* Slot 1: Deep Work (Clean Paper note, timer elevated to Pomodoro hub) */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between gap-1 mb-2 flex-wrap sm:flex-nowrap">
+        <div className="sticky-paper__section" data-task-type="deep">
+          <div className="sticky-paper__section-heading">
             <span className="text-[11px] font-extrabold text-rose-950 flex items-center gap-1.5 shrink-0">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse" />
               ۱ کار عمیق (سازنده)
@@ -1861,6 +1841,8 @@ export default function App() {
               }`}
             >
               <button
+                aria-label="تکمیل کار عمیق"
+                aria-pressed={sticky.deep.done}
                 onClick={() => toggleStickyDone('deep')}
                 className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all active:scale-90 ${
                   sticky.deep.done
@@ -1894,7 +1876,8 @@ export default function App() {
                 onChange={(e) =>
                   setManualSlotInput({ ...manualSlotInput, deep: e.target.value })
                 }
-                placeholder="مهم‌ترین تسک عمیق امروز..."
+                aria-label="کار عمیق امروز"
+                placeholder="مهم‌ترین کار امروز را بنویس..."
                 className="min-w-0 flex-1 bg-white/50 border border-dashed border-slate-900/25 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 placeholder-slate-600 focus:outline-none focus:bg-white/80"
               />
               <button
@@ -1908,7 +1891,7 @@ export default function App() {
         </div>
 
         {/* Slots 2 & 3: Sync / Product / Management */}
-        <div>
+        <div className="sticky-paper__section" data-task-type="sync">
           <span className="text-[11px] font-extrabold text-amber-950 flex items-center gap-1.5 mb-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-600" />۲ کار تعاملی و محصولی
           </span>
@@ -1926,6 +1909,8 @@ export default function App() {
                   }`}
                 >
                   <button
+                    aria-label={`تکمیل کار ${index + 2}`}
+                    aria-pressed={item.done}
                     onClick={() => toggleStickyDone(slotKey)}
                     className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all active:scale-90 ${
                       item.done
@@ -1963,6 +1948,7 @@ export default function App() {
                     onChange={(e) =>
                       setManualSlotInput({ ...manualSlotInput, [slotKey]: e.target.value })
                     }
+                    aria-label={`کار تعاملی ${index + 1}`}
                     placeholder={`کار تعاملی / مدیریتی #${index + 1}...`}
                     className="min-w-0 flex-1 bg-white/45 border border-dashed border-slate-900/25 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 placeholder-slate-600 focus:outline-none focus:bg-white/80"
                   />
@@ -1979,7 +1965,7 @@ export default function App() {
         </div>
 
         {/* Sticky Footer: Crumple Action & Archive Link */}
-        <div className="mt-4 pt-3 border-t border-slate-900/10 flex items-center justify-between">
+        <div className="sticky-paper__footer">
           <button
             type="button"
             onClick={() => {
@@ -2054,10 +2040,6 @@ export default function App() {
           background: rgba(148, 163, 184, 0.35);
         }
 
-        .sticky-paper {
-          background: linear-gradient(145deg, #fef08a 0%, #fde047 60%, #facc15 100%);
-          box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 4px 12px rgba(250, 204, 21, 0.12);
-        }
       `}</style>
 
       {/* Subtle Ambient Glow */}
